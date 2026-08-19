@@ -1,4 +1,5 @@
-import { tool } from "@opencode-ai/plugin"
+import { type Plugin, tool } from "@opencode-ai/plugin"
+import type { OpencodeClient } from "@opencode-ai/sdk/v2"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -10,15 +11,14 @@ const BASE_PROMPT =
   "approximate position, plus errors, warnings, dialogs, overlays and unexpected states. Distinguish observation " +
   "from uncertainty. Do not speculate. Be concise and factual."
 
-const OLLAMA_URL = (process.env.OPENCODE_VISION_OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "")
 const OLLAMA_MODEL = process.env.OPENCODE_VISION_OLLAMA_MODEL ?? "gemma4:e4b"
-const ZEN_URL = "https://opencode.ai/zen/v1"
 const ZEN_FREE_MODEL = "mimo-v2.5-free"
 const ZEN_PAID_MODEL = "gpt-5-nano"
 const LOCAL_TIMEOUT_MS = positiveInt("OPENCODE_VISION_LOCAL_TIMEOUT_MS", 90_000)
 const CLOUD_TIMEOUT_MS = positiveInt("OPENCODE_VISION_CLOUD_TIMEOUT_MS", 45_000)
 const MAX_IMAGE_BYTES = positiveInt("OPENCODE_VISION_MAX_IMAGE_BYTES", 10 * 1024 * 1024)
 const MAX_OUTPUT_TOKENS = 2_048
+const ZEN_URL = "https://opencode.ai/zen/v1"
 const USER_AGENT =
   process.env.OPENCODE_VISION_USER_AGENT ??
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
@@ -27,6 +27,11 @@ type JsonObject = Record<string, unknown>
 
 interface HttpError extends Error {
   status?: number
+}
+
+interface LoadedImage {
+  base64: string
+  mime: string
 }
 
 function positiveInt(name: string, fallback: number): number {
@@ -56,8 +61,10 @@ function requiredText(value: unknown, backend: string): string {
 }
 
 function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/\s+/g, " ").slice(0, 500)
+  if (error instanceof Error) return error.message
+  if (typeof error === "string") return error
+  if (error && typeof error === "object" && "message" in error) return String((error as { message: unknown }).message)
+  return String(error)
 }
 
 function mimeOf(bytes: Uint8Array): string {
@@ -80,7 +87,7 @@ async function existingRoots(paths: string[]): Promise<string[]> {
   return [...new Set(resolved.filter((path): path is string => Boolean(path)))]
 }
 
-async function loadImage(input: string, directory: string, worktree: string) {
+async function loadImageFromPath(input: string, directory: string, worktree: string): Promise<LoadedImage> {
   const path = await realpath(isAbsolute(input) ? input : resolve(directory, input)).catch(() => undefined)
   if (!path) throw new Error(`image not found: ${input}`)
 
@@ -169,7 +176,7 @@ async function postJson(url: string, body: unknown, timeoutMs: number, auth?: st
 async function ollama(image: string, prompt: string): Promise<string> {
   const data = object(
     await postJson(
-      `${OLLAMA_URL}/api/generate`,
+      `http://localhost:11434/api/generate`,
       {
         model: OLLAMA_MODEL,
         prompt,
@@ -255,40 +262,101 @@ async function zenResponses(key: string, image: string, mime: string, prompt: st
   }
 }
 
-export default tool({
-  description:
-    "Inspect a screenshot produced while testing a web application. Returns visible text, UI state, layout, dialogs and errors for models that cannot see images.",
-  args: {
-    path: tool.schema.string().describe("Screenshot path, absolute or relative to the session directory"),
-    prompt: tool.schema.string().optional().describe("Optional specific question about the screenshot"),
-  },
-  async execute(args, context) {
-    const image = await loadImage(args.path, context.directory, context.worktree)
-    const prompt = args.prompt?.trim()
-      ? `${BASE_PROMPT}\n\nSpecific question: ${args.prompt.trim()}`
-      : BASE_PROMPT
-    let keyPromise: Promise<string> | undefined
-    const key = () => (keyPromise ??= zenKey())
-    const backends = [
-      { name: `Local (${OLLAMA_MODEL})`, run: () => ollama(image.base64, prompt) },
-      {
-        name: `Zen Free (${ZEN_FREE_MODEL})`,
-        run: async () => zenChat(await key(), image.base64, image.mime, prompt),
-      },
-      {
-        name: `Zen Paid (${ZEN_PAID_MODEL})`,
-        run: async () => zenResponses(await key(), image.base64, image.mime, prompt),
-      },
-    ]
+async function describe(image: LoadedImage, prompt: string): Promise<string> {
+  let keyPromise: Promise<string> | undefined
+  const key = () => (keyPromise ??= zenKey())
+  const backends = [
+    { name: `Local (${OLLAMA_MODEL})`, run: () => ollama(image.base64, prompt) },
+    {
+      name: `Zen Free (${ZEN_FREE_MODEL})`,
+      run: async () => zenChat(await key(), image.base64, image.mime, prompt),
+    },
+    {
+      name: `Zen Paid (${ZEN_PAID_MODEL})`,
+      run: async () => zenResponses(await key(), image.base64, image.mime, prompt),
+    },
+  ]
 
-    const failures: string[] = []
-    for (const backend of backends) {
+  const failures: string[] = []
+  for (const backend of backends) {
+    try {
+      return await backend.run()
+    } catch (error) {
+      failures.push(`${backend.name}: ${errorMessage(error)}`)
+    }
+  }
+  throw new Error(`all vision backends failed:\n- ${failures.join("\n- ")}`)
+}
+
+async function imageFromFilePart(file: { mime?: string; url?: string }): Promise<LoadedImage> {
+  const url = file.url ?? ""
+  const mime = file.mime ?? "image/png"
+  const marker = "base64,"
+  const index = url.indexOf(marker)
+  if (url.startsWith("data:") && index !== -1) {
+    return { base64: url.slice(index + marker.length), mime }
+  }
+  // Defensive: a plain path or file:// URL instead of a data URL.
+  const path = url.replace(/^file:\/\//, "")
+  const bytes = await readFile(path)
+  return { base64: bytes.toString("base64"), mime }
+}
+
+async function loadImageFromConversation(client: OpencodeClient, sessionID: string): Promise<LoadedImage> {
+  const result = await client.session.messages({ sessionID, limit: 30 })
+  if (result.error) throw new Error(`cannot read session messages: ${errorMessage(result.error)}`)
+
+  let best: LoadedImage | undefined
+  let bestTime = -1
+  for (const message of result.data ?? []) {
+    const created = (message?.info?.time?.created as number) ?? 0
+    for (const part of message?.parts ?? []) {
+      if (part?.type !== "file") continue
+      const file = part as { mime?: string; url?: string }
+      if (!file.mime?.startsWith("image/")) continue
+      if (created < bestTime) continue
       try {
-        return await backend.run()
-      } catch (error) {
-        failures.push(`${backend.name}: ${errorMessage(error)}`)
+        best = await imageFromFilePart(file)
+        bestTime = created
+      } catch {
+        // Skip an image part that cannot be read.
       }
     }
-    throw new Error(`all vision backends failed:\n- ${failures.join("\n- ")}`)
-  },
-})
+  }
+  if (!best) throw new Error("no screenshot found in this conversation; capture one with the browser first")
+  return best
+}
+
+export const VisionPlugin: Plugin = async ({ client }) => {
+  return {
+    tool: {
+      vision: tool({
+        description:
+          "Describe the most recent screenshot or image in this conversation (for example one captured by the browser). Use when you received an image you cannot read and need to know what it shows. Optionally pass a file path or a specific question.",
+        args: {
+          path: tool.schema.string().optional().describe("Optional file path to an image on disk"),
+          prompt: tool.schema.string().optional().describe("Optional specific question about the image"),
+        },
+        async execute(args, context) {
+          const prompt = args.prompt?.trim()
+            ? `${BASE_PROMPT}\n\nSpecific question: ${args.prompt.trim()}`
+            : BASE_PROMPT
+          const image = args.path
+            ? await loadImageFromPath(args.path, context.directory, context.worktree)
+            : await loadImageFromConversation(client, context.sessionID)
+          return describe(image, prompt)
+        },
+      }),
+    },
+    "tool.execute.after": async (input, output) => {
+      if (input.tool === "browsermcp_browser_screenshot" || input.tool.endsWith("_browser_screenshot")) {
+        const hint = "Screenshot captured. Call the `vision` tool to describe it."
+        if (!output.output.includes(hint)) {
+          output.output = output.output ? `${output.output}\n${hint}` : hint
+        }
+      }
+    },
+  }
+}
+
+export default VisionPlugin

@@ -28,6 +28,14 @@ interface HttpError extends Error {
   status?: number
 }
 
+function isHttpError(err: unknown): err is HttpError {
+  return (
+    err instanceof Error &&
+    Object.prototype.hasOwnProperty.call(err, "status") &&
+    typeof (err as { status?: unknown }).status === "number"
+  )
+}
+
 interface LoadedImage {
   base64: string
   mime: string
@@ -263,7 +271,7 @@ async function zenResponses(key: string, image: string, mime: string, prompt: st
     // HTTP 400 means the backend rejected an unknown parameter: `gpt-5-nano` does not accept
     // `reasoning` when it runs in non-reasoning mode. Retry without it; any other error (401
     // credits, 429 rate limit, 5xx, timeout) is propagated to the next fallback tier.
-    if ((error as HttpError).status === 400) {
+    if (isHttpError(error) && error.status === 400) {
       return await call({ model: ZEN_PAID_MODEL, input, max_output_tokens: MAX_OUTPUT_TOKENS })
     }
     throw error

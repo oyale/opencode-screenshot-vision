@@ -1,5 +1,4 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
-import type { OpencodeClient } from "@opencode-ai/sdk/v2"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -63,7 +62,16 @@ function requiredText(value: unknown, backend: string): string {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string") return error
-  if (error && typeof error === "object" && "message" in error) return String((error as { message: unknown }).message)
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>
+    if (typeof record.message === "string") return record.message
+    if (typeof record.error === "string") return record.error
+    try {
+      return JSON.stringify(error)
+    } catch {
+      // Fall through to String(error).
+    }
+  }
   return String(error)
 }
 
@@ -302,32 +310,42 @@ async function imageFromFilePart(file: { mime?: string; url?: string }): Promise
   return { base64: bytes.toString("base64"), mime }
 }
 
-async function loadImageFromConversation(client: OpencodeClient, sessionID: string): Promise<LoadedImage> {
-  const result = await client.session.messages({ sessionID, limit: 30 })
-  if (result.error) throw new Error(`cannot read session messages: ${errorMessage(result.error)}`)
+async function loadImageFromConversation(serverUrl: string, sessionID: string): Promise<LoadedImage> {
+  const base = serverUrl.replace(/\/+$/, "")
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), CLOUD_TIMEOUT_MS)
+  try {
+    const response = await fetch(`${base}/session/${sessionID}/message?limit=30`, { signal: controller.signal })
+    if (!response.ok) throw new Error(`session messages HTTP ${response.status}`)
+    const messages = (await response.json()) as Array<{
+      info?: { time?: { created?: number } }
+      parts?: Array<{ type?: string; mime?: string; url?: string }>
+    }>
 
-  let best: LoadedImage | undefined
-  let bestTime = -1
-  for (const message of result.data ?? []) {
-    const created = (message?.info?.time?.created as number) ?? 0
-    for (const part of message?.parts ?? []) {
-      if (part?.type !== "file") continue
-      const file = part as { mime?: string; url?: string }
-      if (!file.mime?.startsWith("image/")) continue
-      if (created < bestTime) continue
-      try {
-        best = await imageFromFilePart(file)
-        bestTime = created
-      } catch {
-        // Skip an image part that cannot be read.
+    let best: LoadedImage | undefined
+    let bestTime = -1
+    for (const message of messages) {
+      const created = message?.info?.time?.created ?? 0
+      for (const part of message?.parts ?? []) {
+        if (part?.type !== "file") continue
+        if (!part.mime?.startsWith("image/")) continue
+        if (created < bestTime) continue
+        try {
+          best = await imageFromFilePart({ mime: part.mime, url: part.url })
+          bestTime = created
+        } catch {
+          // Skip an image part that cannot be read.
+        }
       }
     }
+    if (!best) throw new Error("no screenshot found in this conversation; capture one with the browser first")
+    return best
+  } finally {
+    clearTimeout(timer)
   }
-  if (!best) throw new Error("no screenshot found in this conversation; capture one with the browser first")
-  return best
 }
 
-export const VisionPlugin: Plugin = async ({ client }) => {
+export const VisionPlugin: Plugin = async ({ serverUrl }) => {
   return {
     tool: {
       vision: tool({
@@ -343,7 +361,7 @@ export const VisionPlugin: Plugin = async ({ client }) => {
             : BASE_PROMPT
           const image = args.path
             ? await loadImageFromPath(args.path, context.directory, context.worktree)
-            : await loadImageFromConversation(client, context.sessionID)
+            : await loadImageFromConversation(serverUrl.origin, context.sessionID)
           return describe(image, prompt)
         },
       }),
@@ -351,8 +369,9 @@ export const VisionPlugin: Plugin = async ({ client }) => {
     "tool.execute.after": async (input, output) => {
       if (input.tool === "browsermcp_browser_screenshot" || input.tool.endsWith("_browser_screenshot")) {
         const hint = "Screenshot captured. Call the `vision` tool to describe it."
-        if (!output.output.includes(hint)) {
-          output.output = output.output ? `${output.output}\n${hint}` : hint
+        const current = typeof output.output === "string" ? output.output : ""
+        if (!current.includes(hint)) {
+          output.output = current ? `${current}\n${hint}` : hint
         }
       }
     },

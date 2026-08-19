@@ -25,6 +25,10 @@ const USER_AGENT =
 
 type JsonObject = Record<string, unknown>
 
+interface HttpError extends Error {
+  status?: number
+}
+
 function positiveInt(name: string, fallback: number): number {
   const value = Number(process.env[name])
   return Number.isSafeInteger(value) && value > 0 ? value : fallback
@@ -144,7 +148,11 @@ async function postJson(url: string, body: unknown, timeoutMs: number, auth?: st
       signal: controller.signal,
     })
     const raw = await response.text()
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${raw.replace(/\s+/g, " ").slice(0, 1_000)}`)
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}: ${raw.replace(/\s+/g, " ").slice(0, 1_000)}`) as HttpError
+      error.status = response.status
+      throw error
+    }
     try {
       return JSON.parse(raw)
     } catch {
@@ -201,38 +209,50 @@ async function zenChat(key: string, image: string, mime: string, prompt: string)
   return requiredText(object(choice?.message)?.content, `Zen Free (${ZEN_FREE_MODEL})`)
 }
 
-async function zenResponses(key: string, image: string, mime: string, prompt: string): Promise<string> {
-  const data = object(
-    await postJson(
-      `${ZEN_URL}/responses`,
-      {
-        model: ZEN_PAID_MODEL,
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: prompt },
-              { type: "input_image", image_url: `data:${mime};base64,${image}` },
-            ],
-          },
-        ],
-        reasoning: { effort: "minimal" },
-        max_output_tokens: MAX_OUTPUT_TOKENS,
-      },
-      CLOUD_TIMEOUT_MS,
-      key,
-    ),
-  )
+function responsesText(data: JsonObject | undefined, backend: string): string {
   const direct = text(data?.output_text)
   if (direct) return direct
   const messages = Array.isArray(data?.output) ? data.output.map(object).filter(Boolean) : []
   for (const message of messages) {
     if (message?.type !== "message" || !Array.isArray(message.content)) continue
     for (const content of message.content.map(object).filter(Boolean)) {
-      if (content?.type === "output_text") return requiredText(content.text, `Zen Paid (${ZEN_PAID_MODEL})`)
+      if (content?.type === "output_text") return requiredText(content.text, backend)
     }
   }
-  throw new Error(`Zen Paid (${ZEN_PAID_MODEL}) returned no text`)
+  throw new Error(`${backend} returned no text`)
+}
+
+async function zenResponses(key: string, image: string, mime: string, prompt: string): Promise<string> {
+  const input = [
+    {
+      role: "user",
+      content: [
+        { type: "input_text", text: prompt },
+        { type: "input_image", image_url: `data:${mime};base64,${image}` },
+      ],
+    },
+  ]
+  const call = (body: JsonObject) =>
+    postJson(`${ZEN_URL}/responses`, body, CLOUD_TIMEOUT_MS, key).then((data) =>
+      responsesText(object(data), `Zen Paid (${ZEN_PAID_MODEL})`),
+    )
+
+  try {
+    return await call({
+      model: ZEN_PAID_MODEL,
+      input,
+      reasoning: { effort: "minimal" },
+      max_output_tokens: MAX_OUTPUT_TOKENS,
+    })
+  } catch (error) {
+    // HTTP 400 means the backend rejected an unknown parameter: `gpt-5-nano` does not accept
+    // `reasoning` when it runs in non-reasoning mode. Retry without it; any other error (401
+    // credits, 429 rate limit, 5xx, timeout) is propagated to the next fallback tier.
+    if ((error as HttpError).status === 400) {
+      return await call({ model: ZEN_PAID_MODEL, input, max_output_tokens: MAX_OUTPUT_TOKENS })
+    }
+    throw error
+  }
 }
 
 export default tool({

@@ -28,7 +28,7 @@ This is a parallel project built for learning, not a competitor claiming to repl
 - Single `vision` tool — one call, no new workflow to learn.
 - Reads screenshots from three sources: the latest browser screenshot, a pasted/dropped image in the conversation, or a file on disk.
 - Automatic fallback across three backends: local Ollama, then OpenCode Zen free, then Zen paid.
-- Direct HTTP calls to the vision backends, rather than opencode's model path: in testing, an image attached through opencode did not reach the local Ollama model, while a direct call to Ollama's OpenAI-compatible endpoint did.
+- Direct HTTP calls to the vision backends, rather than opencode's model path: in testing, an image attached through opencode did not reach the local Ollama model, while a direct HTTP call to Ollama did.
 - Built-in safety: prompt-injection defense, path containment, MIME sniffing, a 10 MB size limit, and a 2,048-token output cap.
 
 ## How it works
@@ -51,13 +51,15 @@ All flows converge on the same `describe` step: encode the image, send it to a b
 
 ### Fallback chain
 
-Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode). The models below are defaults — override them with environment variables (see [Configuration](#configuration)).
+Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode).
 
 | Tier | Backend | Model | Cost | Endpoint |
 |------|---------|-------|------|----------|
 | 1 | Local Ollama | `gemma4:e4b` | Free | `/api/generate` |
 | 2 | OpenCode Zen | `mimo-v2.5-free` | Free | `/v1/chat/completions` |
 | 3 | OpenCode Zen | `gpt-5-nano` | $0.05 / $0.40 per 1M tokens | `/v1/responses` |
+
+> **Backend scope (v1.0.0).** The backends are fixed to these two providers. The local tier speaks Ollama's *native* API (`/api/generate` on `localhost:11434`), so it does **not** work with other local runtimes such as LM Studio, llama.cpp, or vLLM — those expose an OpenAI-compatible endpoint instead. The cloud tier is fixed to OpenCode Zen: its base URL, the two model names, and their request formats are hardcoded. Only the local model name is overridable today. Lifting these constraints is planned in [ROADMAP.md](ROADMAP.md) (v1.2.0).
 
 ## Requirements
 
@@ -117,7 +119,7 @@ vision(path="/tmp/opencode/screenshot-123.png", prompt="List any error messages 
 
 ## Configuration
 
-All settings are optional environment variables.
+Only the settings below are configurable, via optional environment variables. Everything else — the local endpoint, the Zen URL, the Zen models, and the request formats — is fixed in the code (see the fallback-chain scope note above).
 
 | Variable | Default | Purpose |
 |----------|---------|---------|

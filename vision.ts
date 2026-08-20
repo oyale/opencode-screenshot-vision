@@ -307,6 +307,20 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
   )
 }
 
+async function imageFromFilePart(file: { mime?: string; url?: string }): Promise<LoadedImage> {
+  const url = file.url ?? ""
+  const mime = file.mime ?? "image/png"
+  const marker = "base64,"
+  const index = url.indexOf(marker)
+  if (url.startsWith("data:") && index !== -1) {
+    return { base64: url.slice(index + marker.length), mime }
+  }
+  // Defensive: a plain path or file:// URL instead of a data URL.
+  const path = url.replace(/^file:\/\//, "")
+  const bytes = await readFile(path)
+  return { base64: bytes.toString("base64"), mime }
+}
+
 const imagesBySession = new Map<string, LoadedImage>()
 
 export const VisionPlugin: Plugin = async () => {
@@ -332,6 +346,20 @@ export const VisionPlugin: Plugin = async () => {
           return describe(image, prompt)
         },
       }),
+    },
+    "chat.message": async (input, output) => {
+      // Pasted/dropped images arrive as file parts on the incoming message
+      // (browser screenshots never do — those come through tool.execute.after).
+      for (const part of output.parts ?? []) {
+        if (part.type !== "file") continue
+        const file = part as { mime?: string; url?: string }
+        if (!file.mime?.startsWith("image/")) continue
+        try {
+          imagesBySession.set(input.sessionID, await imageFromFilePart(file))
+        } catch {
+          // Ignore an image part that cannot be read.
+        }
+      }
     },
     "tool.execute.after": async (input, output) => {
       if (input.tool !== "browsermcp_browser_screenshot" && !input.tool.endsWith("_browser_screenshot")) return

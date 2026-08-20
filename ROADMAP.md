@@ -24,9 +24,9 @@ Rationale: this is what [`opencode-vision`](https://github.com/WeZZard/opencode-
 
 ### Auto-transparent handling for pasted images — **soon**
 
-Adopt the `messages.transform` approach from [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback): detect a pasted image and replace it with a text description before the main model sees it.
+Pasted images already work through the manual path (the `chat.message` hook captures them, and the model calls `vision()`). What remains is the auto-transparent step: adopt the `messages.transform` approach from [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback) to replace a pasted image with a text description before the main model sees it, so no manual call is needed.
 
-Rationale: this complements, rather than replaces, the browser-MCP capture. The browser-MCP flow reads screenshots from raw tool results (which never pass through message transforms), so the auto-transparent packages miss it — but they cover pasted images, which this plugin does not. Adding the transform path closes that gap and makes the plugin useful in both flows.
+Rationale: the manual path already closes the gap; the auto-replacement removes the last bit of friction. It complements, rather than replaces, the browser-MCP capture — browser screenshots arrive via raw tool results, not the message pipeline.
 
 ### OCR + analyze tools — **later**
 

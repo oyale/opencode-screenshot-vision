@@ -4,7 +4,7 @@ Give a text-only LLM the ability to read screenshots during browser-testing work
 
 ## What problem does this solve?
 
-Models like `deepseek-chat` are text-only: they can drive a browser through an MCP server but cannot read the screenshots the browser sends back. When a test step needs to verify what is actually on screen, the model is blind.
+Text-only models can drive a browser through an MCP server but cannot read the screenshots the browser sends back. When a test step needs to verify what is actually on screen, the model is blind.
 
 `opencode-screenshot-vision` is an [OpenCode](https://opencode.ai) plugin that closes this gap. It exposes a single `vision` tool to the model. The model calls that tool, and the tool sends the screenshot to a vision-capable backend and returns a plain-text description. The text-only model never gains vision itself — it just receives a description it can reason over.
 
@@ -12,7 +12,7 @@ Models like `deepseek-chat` are text-only: they can drive a browser through an M
 
 This plugin exists for one specific job: **screenshots for browser-testing workflows, local-first.**
 
-It is *not* a general-purpose "vision for text-only models" package. That space is crowded, and the auto-transparent packages in [Related work](#related-work) already serve pasted images better than this plugin does. This project focuses on the browser-testing flow — screenshots captured by Browser MCP — which those packages do not cover, and it prioritizes free, local inference before falling back to any cloud service.
+It is *not* a general-purpose "vision for text-only models" package. That space is crowded, and the auto-transparent packages in [Related work](#related-work) serve pasted images more smoothly than this plugin does (this one still needs a manual `vision()` call for them). This project focuses on the browser-testing flow — screenshots captured by Browser MCP — which those packages do not cover, and it prioritizes free, local inference before falling back to any cloud service.
 
 This is a parallel project built for learning, not a competitor claiming to replace the earlier work. The differences are spelled out below.
 
@@ -26,29 +26,32 @@ This is a parallel project built for learning, not a competitor claiming to repl
 ## Features
 
 - Single `vision` tool — one call, no new workflow to learn.
-- Reads screenshots from two sources: the latest image captured in the conversation ([Browser MCP](https://browsermcp.io) inline flow) or a file on disk (Playwright flow).
+- Reads screenshots from three sources: the latest browser screenshot, a pasted/dropped image in the conversation, or a file on disk (Playwright flow).
 - Automatic fallback across three backends: local Ollama, then OpenCode Zen free, then Zen paid.
-- Direct HTTP calls to the vision backends — bypasses opencode's provider layer, which does not deliver images to Ollama models (verified).
+- Direct HTTP calls to the vision backends, rather than opencode's model path: in testing, an image attached through opencode did not reach the local Ollama model, while a direct call to Ollama's OpenAI-compatible endpoint did.
 - Built-in safety: prompt-injection defense, path containment, MIME sniffing, a 10 MB size limit, and a 2,048-token output cap.
 
 ## How it works
 
-The plugin registers two things when opencode starts:
+The plugin registers three things when opencode starts:
 
 1. A `vision` tool the model can call.
-2. A `tool.execute.after` hook that, whenever a browser screenshot tool runs, captures the image from the raw tool result and keeps it in memory for the current session.
+2. A `tool.execute.after` hook that captures the image whenever a browser screenshot tool runs.
+3. A `chat.message` hook that captures pasted/dropped images from incoming messages.
 
-### The two flows
+### The three flows
 
-**Browser MCP (inline).** When a [Browser MCP](https://browsermcp.io) server captures a screenshot, the image is returned inline in the tool result (`{ content: [{ type: "image", ... }] }`) — it never touches disk. The hook captures it in memory, and calling `vision` with no arguments describes the most recent captured screenshot.
+**Browser MCP (inline).** When a [Browser MCP](https://browsermcp.io) server captures a screenshot, the image is returned inline in the tool result (`{ content: [{ type: "image", ... }] }`) — it never touches disk. The `tool.execute.after` hook captures it in memory, and calling `vision` with no arguments describes the most recent captured screenshot.
+
+**Pasted / dropped image.** A pasted or dropped image arrives as a file part on the incoming message. The `chat.message` hook captures it, and calling `vision` with no arguments describes it. (The auto-transparent packages do this without the manual call.)
 
 **Playwright (on disk).** When screenshots are saved as files, the model calls `vision` with a `path` argument. The plugin reads and validates that file directly.
 
-Both flows converge on the same `describe` step: encode the image, send it to a backend, and return the text description.
+All flows converge on the same `describe` step: encode the image, send it to a backend, and return the text description.
 
 ### Fallback chain
 
-Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode).
+Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode). The models below are defaults — override them with environment variables (see [Configuration](#configuration)).
 
 | Tier | Backend | Model | Cost | Endpoint |
 |------|---------|-------|------|----------|
@@ -59,7 +62,7 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
 ## Requirements
 
 - [OpenCode](https://opencode.ai) (the plugin loads at startup).
-- **Local tier:** [Ollama](https://ollama.com) running, with the vision model pulled:
+- **Local tier:** [Ollama](https://ollama.com) running, with a vision-capable model pulled (default `gemma4:e4b`):
 
   ```sh
   ollama pull gemma4:e4b
@@ -138,9 +141,9 @@ All settings are optional environment variables.
 ## Troubleshooting / Caveats
 
 - **Zen balance.** The paid tier returns `401 CreditsError` when the workspace has insufficient balance.
-- **Zen free rate limit.** `mimo-v2.5-free` can return `429` under load.
+- **Zen free rate limit.** The free tier can return `429` under load.
 - **Cloudflare.** Zen requests must send a browser `User-Agent`; this is set by default.
-- **`gpt-5-nano` vision.** Not yet verified at runtime — treat the paid tier as unproven until exercised.
+- **Zen paid vision.** Not yet verified at runtime — treat the paid tier as unproven until exercised.
 
 When all three backends fail, the `vision` tool reports each failure in a single error message, along with a hint to retry sequential calls if several vision calls were made at once.
 

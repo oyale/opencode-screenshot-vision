@@ -362,7 +362,7 @@ export const VisionPlugin: Plugin = async () => {
       }
     },
     "tool.execute.after": async (input, output) => {
-      if (input.tool !== "browsermcp_browser_screenshot" && !input.tool.endsWith("_browser_screenshot")) return
+      if (!input.tool.toLowerCase().includes("screenshot")) return
       // MCP tools return the raw `{ content: [...] }` result here (not `{ output, metadata }`).
       // A browser screenshot returns image content as `{ type: "image", data: <base64>, mimeType }`.
       const content = (output as { content?: unknown })?.content

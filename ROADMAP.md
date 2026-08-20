@@ -62,8 +62,10 @@ Today the plugin targets the OpenCode plugin API only. Extract the core (image �
 
 Rationale: the need — a text-only model that cannot read screenshots — exists in every agent runtime. The core is portable; only the integration layer differs. A `screenshot-vision describe image.png` CLI would serve every harness at once.
 
-### More screenshot sources — **later**
+### Broader inline screenshot-tool recognition — **later** (largely done)
 
-Today: BrowserMCP and Playwright files. Add Chrome DevTools MCP, Puppeteer, Selenium, and any tool that writes a PNG or returns base64.
+File-based input already works with any tool that writes a PNG or returns base64 — Selenium, Puppeteer, Cypress, Chrome DevTools MCP, and others all work through `vision(path=...)` or the pasted-image path. The inline capture hook now matches any tool whose name contains "screenshot", so most browser MCP servers are covered too.
+
+What may remain is validating the inline capture against specific MCP servers whose screenshot tool uses an unusual name or result shape, and adding those names if the generic match misses them.
 
 Rationale: a path or a base64 blob is enough input — do not couple the tool to one browser driver.

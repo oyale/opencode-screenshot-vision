@@ -20,13 +20,13 @@ This is a parallel project built for learning, not a competitor claiming to repl
 
 1. **Browser MCP screenshot capture.** Browser MCP returns screenshots inline in the raw tool result; those results never pass through the message-transform pipeline (verified), so the auto-transparent packages do not cover the browser-testing flow. This plugin captures them via a `tool.execute.after` hook on the raw MCP result.
 2. **Local-first and free.** The primary tier is local Ollama (free, private, no API key), then OpenCode Zen free, then Zen paid.
-3. **Playwright file mode.** `vision(path=...)` reads a screenshot saved to disk, e.g. by Playwright.
+3. **File mode.** `vision(path=...)` reads any screenshot saved to disk, regardless of the tool that produced it (Playwright, Selenium, Puppeteer, Cypress, a manual capture, …).
 4. **Prompt-injection defense** in the vision prompt.
 
 ## Features
 
 - Single `vision` tool — one call, no new workflow to learn.
-- Reads screenshots from three sources: the latest browser screenshot, a pasted/dropped image in the conversation, or a file on disk (Playwright flow).
+- Reads screenshots from three sources: the latest browser screenshot, a pasted/dropped image in the conversation, or a file on disk.
 - Automatic fallback across three backends: local Ollama, then OpenCode Zen free, then Zen paid.
 - Direct HTTP calls to the vision backends, rather than opencode's model path: in testing, an image attached through opencode did not reach the local Ollama model, while a direct call to Ollama's OpenAI-compatible endpoint did.
 - Built-in safety: prompt-injection defense, path containment, MIME sniffing, a 10 MB size limit, and a 2,048-token output cap.
@@ -45,7 +45,7 @@ The plugin registers three things when opencode starts:
 
 **Pasted / dropped image.** A pasted or dropped image arrives as a file part on the incoming message. The `chat.message` hook captures it, and calling `vision` with no arguments describes it. (The auto-transparent packages do this without the manual call.)
 
-**Playwright (on disk).** When screenshots are saved as files, the model calls `vision` with a `path` argument. The plugin reads and validates that file directly.
+**File on disk (any tool).** When a screenshot is saved as a file — by Playwright, Selenium, Puppeteer, Cypress, or anything else — the model calls `vision` with a `path` argument. The plugin reads and validates that file directly.
 
 All flows converge on the same `describe` step: encode the image, send it to a backend, and return the text description.
 
@@ -95,10 +95,11 @@ vision()
 
 The tool returns a description of the most recently captured screenshot.
 
-**Playwright flow — read a screenshot saved to disk:**
+**File flow — read a screenshot saved to disk:**
 
 ```
-# The test runner saves a screenshot to a file. Pass its path:
+# Any tool (Playwright, Selenium, Puppeteer, Cypress, ...) saves a screenshot
+# to a file. Pass its path:
 vision(path="/tmp/opencode/screenshot-123.png")
 ```
 

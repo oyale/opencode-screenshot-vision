@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 (2026-08-20)
+
+
+### Features
+
+* add debug logging and improve image handling in VisionPlugin ([689a909](https://github.com/oyale/opencode-screenshot-vision/commit/689a9097cc8a7810e1961cb5011bb28230b8c02f))
+* add isHttpError function to improve error type checking in HTTP responses ([d9330b2](https://github.com/oyale/opencode-screenshot-vision/commit/d9330b2eea36938dc2178f03ac36049dc770b8d2))
+* add MIT License to the project ([80d0f4e](https://github.com/oyale/opencode-screenshot-vision/commit/80d0f4e5facd22a114e64af58b9bad0de968d7a7))
+* recommend sequential retries when all vision backends fail ([a1eb410](https://github.com/oyale/opencode-screenshot-vision/commit/a1eb410a951e235697451689718bd20d597d570c))
+* support pasted/dropped images; soften provider claim ([3609c7e](https://github.com/oyale/opencode-screenshot-vision/commit/3609c7e27d71aacb5e10c14a4d53006d0f7c7a32))
+* use OpenAI-compatible local backend with configurable URL ([7a001fe](https://github.com/oyale/opencode-screenshot-vision/commit/7a001fefe9edb0bdb4cb815de53be1022ed4a3d0))
+* **vision:** add plugin-based conversation image support, typed errors, and safer path checks ([0374b93](https://github.com/oyale/opencode-screenshot-vision/commit/0374b938920de8fdadce587b843df882d5e9f802))
+
+
+### Bug Fixes
+
+* capture browser screenshot image from raw MCP tool result ([72e9233](https://github.com/oyale/opencode-screenshot-vision/commit/72e92330ee2007988de9454e1f9d229fe4e4b89e))
+
 ## [1.1.0] - 2026-08-20
 
 ### Changed

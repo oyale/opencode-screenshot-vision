@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-20
+
+### Changed
+
+- The local tier now uses the OpenAI-compatible `/v1/chat/completions` API instead of Ollama's native `/api/generate`, so it works with LM Studio, llama.cpp server, vLLM, and any runtime exposing that endpoint.
+
+### Added
+
+- `OPENCODE_VISION_LOCAL_URL` (default `http://localhost:11434/v1`) to point the local tier at another runtime.
+- `OPENCODE_VISION_LOCAL_MODEL` (default `gemma4:e4b`). `OPENCODE_VISION_OLLAMA_MODEL` is still honored as a deprecated alias.
+
 ## [1.0.0] - 2026-08-20
 
 ### Added

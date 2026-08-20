@@ -10,7 +10,11 @@ const BASE_PROMPT =
   "approximate position, plus errors, warnings, dialogs, overlays and unexpected states. Distinguish observation " +
   "from uncertainty. Do not speculate. Be concise and factual."
 
-const OLLAMA_MODEL = process.env.OPENCODE_VISION_OLLAMA_MODEL ?? "gemma4:e4b"
+const LOCAL_MODEL =
+  process.env.OPENCODE_VISION_LOCAL_MODEL ??
+  process.env.OPENCODE_VISION_OLLAMA_MODEL ??
+  "gemma4:e4b"
+const LOCAL_URL = (process.env.OPENCODE_VISION_LOCAL_URL ?? "http://localhost:11434/v1").replace(/\/+$/, "")
 const ZEN_FREE_MODEL = "mimo-v2.5-free"
 const ZEN_PAID_MODEL = "gpt-5-nano"
 const LOCAL_TIMEOUT_MS = positiveInt("OPENCODE_VISION_LOCAL_TIMEOUT_MS", 90_000)
@@ -189,21 +193,31 @@ async function postJson(url: string, body: unknown, timeoutMs: number, auth?: st
   }
 }
 
-async function ollama(image: string, prompt: string): Promise<string> {
+async function localChat(image: string, mime: string, prompt: string): Promise<string> {
+  // OpenAI-compatible endpoint — works with Ollama's /v1 as well as LM Studio,
+  // llama.cpp server, vLLM, and any runtime exposing /v1/chat/completions.
   const data = object(
     await postJson(
-      `http://localhost:11434/api/generate`,
+      `${LOCAL_URL}/chat/completions`,
       {
-        model: OLLAMA_MODEL,
-        prompt,
-        images: [image],
-        stream: false,
-        options: { temperature: 0.2, num_predict: MAX_OUTPUT_TOKENS },
+        model: LOCAL_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${mime};base64,${image}` } },
+            ],
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: MAX_OUTPUT_TOKENS,
       },
       LOCAL_TIMEOUT_MS,
     ),
   )
-  return requiredText(data?.response, `Ollama (${OLLAMA_MODEL})`)
+  const choice = Array.isArray(data?.choices) ? object(data.choices[0]) : undefined
+  return requiredText(object(choice?.message)?.content, `Local (${LOCAL_MODEL})`)
 }
 
 async function zenChat(key: string, image: string, mime: string, prompt: string): Promise<string> {
@@ -282,7 +296,7 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
   let keyPromise: Promise<string> | undefined
   const key = () => (keyPromise ??= zenKey())
   const backends = [
-    { name: `Local (${OLLAMA_MODEL})`, run: () => ollama(image.base64, prompt) },
+    { name: `Local (${LOCAL_MODEL})`, run: () => localChat(image.base64, image.mime, prompt) },
     {
       name: `Zen Free (${ZEN_FREE_MODEL})`,
       run: async () => zenChat(await key(), image.base64, image.mime, prompt),

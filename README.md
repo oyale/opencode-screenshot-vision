@@ -19,7 +19,7 @@ This is a parallel project built for learning, not a competitor claiming to repl
 ## What this project adds
 
 1. **Browser MCP screenshot capture.** Browser MCP returns screenshots inline in the raw tool result; those results never pass through the message-transform pipeline (verified), so the auto-transparent packages do not cover the browser-testing flow. This plugin captures them via a `tool.execute.after` hook on the raw MCP result.
-2. **Local-first and free.** The primary tier is local Ollama (free, private, no API key), then OpenCode Zen free, then Zen paid.
+2. **Local-first and free.** The primary tier is a local OpenAI-compatible runtime (free, private, no API key), then OpenCode Zen free, then Zen paid.
 3. **File mode.** `vision(path=...)` reads any screenshot saved to disk, regardless of the tool that produced it (Playwright, Selenium, Puppeteer, Cypress, a manual capture, …).
 4. **Prompt-injection defense** in the vision prompt.
 
@@ -27,7 +27,7 @@ This is a parallel project built for learning, not a competitor claiming to repl
 
 - Single `vision` tool — one call, no new workflow to learn.
 - Reads screenshots from three sources: the latest browser screenshot, a pasted/dropped image in the conversation, or a file on disk.
-- Automatic fallback across three backends: local Ollama, then OpenCode Zen free, then Zen paid.
+- Automatic fallback across three backends: a local OpenAI-compatible runtime, then OpenCode Zen free, then Zen paid.
 - Direct HTTP calls to the vision backends, rather than opencode's model path: in testing, an image attached through opencode did not reach the local Ollama model, while a direct HTTP call to Ollama did.
 - Built-in safety: prompt-injection defense, path containment, MIME sniffing, a 10 MB size limit, and a 2,048-token output cap.
 
@@ -55,20 +55,22 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
 
 | Tier | Backend | Model | Cost | Endpoint |
 |------|---------|-------|------|----------|
-| 1 | Local Ollama | `gemma4:e4b` | Free | `/api/generate` |
+| 1 | Local (OpenAI-compatible) | `gemma4:e4b` | Free | `/v1/chat/completions` |
 | 2 | OpenCode Zen | `mimo-v2.5-free` | Free | `/v1/chat/completions` |
 | 3 | OpenCode Zen | `gpt-5-nano` | $0.05 / $0.40 per 1M tokens | `/v1/responses` |
 
-> **Backend scope (v1.0.0).** The backends are fixed to these two providers. The local tier speaks Ollama's *native* API (`/api/generate` on `localhost:11434`), so it does **not** work with other local runtimes such as LM Studio, llama.cpp, or vLLM — those expose an OpenAI-compatible endpoint instead. The cloud tier is fixed to OpenCode Zen: its base URL, the two model names, and their request formats are hardcoded. Only the local model name is overridable today. Lifting these constraints is planned in [ROADMAP.md](ROADMAP.md) (v1.2.0).
+> **Backend scope (v1.1.0).** The local tier speaks the OpenAI-compatible `/v1/chat/completions` API, so it works with Ollama as well as LM Studio, llama.cpp server, vLLM, and any runtime that exposes that endpoint — point `OPENCODE_VISION_LOCAL_URL` at it. The cloud tier is still fixed to OpenCode Zen: its base URL, the two model names, and their request formats are hardcoded. Lifting the cloud constraints is planned in [ROADMAP.md](ROADMAP.md) (v1.2.0).
 
 ## Requirements
 
 - [OpenCode](https://opencode.ai) (the plugin loads at startup).
-- **Local tier:** [Ollama](https://ollama.com) running, with a vision-capable model pulled (default `gemma4:e4b`):
+- **Local tier:** any OpenAI-compatible runtime — [Ollama](https://ollama.com), [LM Studio](https://lmstudio.ai), a llama.cpp server, or vLLM — with a vision-capable model. Example for Ollama (default model `gemma4:e4b`):
 
   ```sh
   ollama pull gemma4:e4b
   ```
+
+  Point the plugin at another runtime with `OPENCODE_VISION_LOCAL_URL`.
 
 - **Zen tiers:** an OpenCode Zen connection, configured via `/connect` in opencode (or the equivalent environment variables).
 - **Browser MCP flow:** a [Browser MCP](https://browsermcp.io) server ([`@browsermcp/mcp`](https://github.com/browsermcp/mcp)) connected in opencode.
@@ -119,11 +121,13 @@ vision(path="/tmp/opencode/screenshot-123.png", prompt="List any error messages 
 
 ## Configuration
 
-Only the settings below are configurable, via optional environment variables. Everything else — the local endpoint, the Zen URL, the Zen models, and the request formats — is fixed in the code (see the fallback-chain scope note above).
+Only the settings below are configurable, via optional environment variables. Everything else — the Zen URL, the Zen models, and the request formats — is fixed in the code (see the fallback-chain scope note above).
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `OPENCODE_VISION_OLLAMA_MODEL` | `gemma4:e4b` | Local Ollama vision model |
+| `OPENCODE_VISION_LOCAL_URL` | `http://localhost:11434/v1` | Local OpenAI-compatible base URL |
+| `OPENCODE_VISION_LOCAL_MODEL` | `gemma4:e4b` | Local vision model |
+| `OPENCODE_VISION_OLLAMA_MODEL` | *(deprecated)* | Old name for the local model; still honored |
 | `OPENCODE_VISION_LOCAL_TIMEOUT_MS` | `90000` | Local request timeout, milliseconds |
 | `OPENCODE_VISION_CLOUD_TIMEOUT_MS` | `45000` | Zen request timeout, milliseconds |
 | `OPENCODE_VISION_MAX_IMAGE_BYTES` | `10485760` (10 MB) | Max image size for path-based loads |

@@ -34,6 +34,7 @@ Rationale: consumers should depend on a built, CI-verified artifact, and every r
 
 | Item | Type | Prior art |
 |---|---|---|
+| ~~Local OpenAI-compatible backend~~ *(done in this release)*: the local tier now speaks `/v1/chat/completions` with a configurable URL, so LM Studio, llama.cpp server, and vLLM work alongside Ollama | `feat` | — |
 | Config-block overrides for provider/model/timeout (env vars kept as fallback) | `feat` | — |
 | `ocr` + `analyze` tools alongside `vision` | `feat` | [`opencode-vision-plugin`](https://github.com/AshutoshGitMirror/opencode-vision-plugin) |
 | Auto-transparent pasted images (replace with text before the model sees it) | `feat` | [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback) |
@@ -46,7 +47,6 @@ Rationale: all additive — existing users see no change unless they opt in. `fe
 |---|---|
 | Backend interface abstraction (URL + auth + adapter per API family) | `refactor` |
 | Auto-discover a vision-capable model from configured providers | `feat` |
-| More local backends (OpenAI-compatible: LM Studio, llama.cpp, vLLM, …) | `feat` |
 | More cloud providers (Gemini, OpenAI, Anthropic, NVIDIA NIM, Groq, OpenRouter) | `feat` |
 
 Rationale: the interface is internal (no breaking change), and each new backend is additive. `refactor`/`feat` → MINOR. Auto-discovery borrows from [`opencode-vision`](https://github.com/WeZZard/opencode-vision).

@@ -67,7 +67,7 @@ function requiredText(value: unknown, backend: string): string {
   return result
 }
 
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string") return error
   if (error && typeof error === "object") {
@@ -83,7 +83,7 @@ function errorMessage(error: unknown): string {
   return String(error)
 }
 
-function mimeOf(bytes: Uint8Array): string {
+export function mimeOf(bytes: Uint8Array): string {
   const png = [137, 80, 78, 71, 13, 10, 26, 10]
   if (bytes.length >= png.length && png.every((byte, index) => bytes[index] === byte)) return "image/png"
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
@@ -93,7 +93,7 @@ function mimeOf(bytes: Uint8Array): string {
   throw new Error("unsupported image format; expected PNG, JPEG, WebP or GIF")
 }
 
-function contains(root: string, path: string): boolean {
+export function contains(root: string, path: string): boolean {
   const child = relative(root, path)
   return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
 }

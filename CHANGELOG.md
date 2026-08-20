@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.1.0...v1.2.0) (2026-08-20)
+
+
+### Features
+
+* add GitHub workflows for Dependabot, CodeQL analysis, Node.js CI, and package publishing ([a911cd8](https://github.com/oyale/opencode-screenshot-vision/commit/a911cd8a90ac8948f72e13edf8c017b0a4276f65))
+* update release manifest structure for improved package management ([12fac75](https://github.com/oyale/opencode-screenshot-vision/commit/12fac7540caeeabc200884914647921d07719c63))
+
+
+### Bug Fixes
+
+* bound the per-session image cache ([54bbd24](https://github.com/oyale/opencode-screenshot-vision/commit/54bbd24f3e4130f8e98b05a16589a110ab9dde9b))
+* update Node.js CI workflow to support Node.js 24 and improve install process ([d464fe7](https://github.com/oyale/opencode-screenshot-vision/commit/d464fe7584282b59d968a83ac19237edf7c129c2))
+
 ## [1.1.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.0.0...v1.1.0) (2026-08-20)
 
 

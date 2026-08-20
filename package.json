@@ -44,9 +44,9 @@
     "@opencode-ai/plugin": "^1.18.18"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.2.0",
     "bun-types": "latest",
-    "typescript": "^5.7.0"
+    "typescript": "^7.0.2"
   },
   "publishConfig": {
     "access": "public"

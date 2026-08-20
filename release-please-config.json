@@ -1,6 +1,16 @@
 {
   "packages": {
     ".": {
+      "release-type": "node"
+    }
+  },
+  "commit-search-depth": 500,
+  "commit-batch-size": 20,
+  "always-update": true
+}
+{
+  "packages": {
+    ".": {
       "release-type": "node",
       "path": ".",
       "changelog-path": "CHANGELOG.md",

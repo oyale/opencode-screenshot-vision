@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * bound the per-session image cache ([54bbd24](https://github.com/oyale/opencode-screenshot-vision/commit/54bbd24f3e4130f8e98b05a16589a110ab9dde9b))
 
-## 1.0.0 (2026-08-20)
+## 1.1.0 (2026-08-20)
 
 
 ### Features

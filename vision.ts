@@ -1,5 +1,4 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
-import { appendFileSync } from "node:fs"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -82,23 +81,6 @@ function errorMessage(error: unknown): string {
     }
   }
   return String(error)
-}
-
-function debugLog(entry: Record<string, unknown>): void {
-  try {
-    appendFileSync("/tmp/vision-debug.log", `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`)
-  } catch {
-    // Debug only; never break the tool.
-  }
-}
-
-function preview(value: unknown): string {
-  try {
-    const s = typeof value === "string" ? value : JSON.stringify(value)
-    return s.replace(/\s+/g, " ").slice(0, 300)
-  } catch {
-    return String(value).slice(0, 300)
-  }
 }
 
 function mimeOf(bytes: Uint8Array): string {
@@ -322,20 +304,6 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
   throw new Error(`all vision backends failed:\n- ${failures.join("\n- ")}`)
 }
 
-async function imageFromFilePart(file: { mime?: string; url?: string }): Promise<LoadedImage> {
-  const url = file.url ?? ""
-  const mime = file.mime ?? "image/png"
-  const marker = "base64,"
-  const index = url.indexOf(marker)
-  if (url.startsWith("data:") && index !== -1) {
-    return { base64: url.slice(index + marker.length), mime }
-  }
-  // Defensive: a plain path or file:// URL instead of a data URL.
-  const path = url.replace(/^file:\/\//, "")
-  const bytes = await readFile(path)
-  return { base64: bytes.toString("base64"), mime }
-}
-
 const imagesBySession = new Map<string, LoadedImage>()
 
 export const VisionPlugin: Plugin = async () => {
@@ -349,13 +317,6 @@ export const VisionPlugin: Plugin = async () => {
           prompt: tool.schema.string().optional().describe("Optional specific question about the image"),
         },
         async execute(args, context) {
-          debugLog({
-            event: "vision.execute",
-            sessionID: context.sessionID,
-            hasPath: Boolean(args.path),
-            captured: imagesBySession.has(context.sessionID),
-            capturedSize: imagesBySession.get(context.sessionID)?.base64.length ?? 0,
-          })
           const prompt = args.prompt?.trim()
             ? `${BASE_PROMPT}\n\nSpecific question: ${args.prompt.trim()}`
             : BASE_PROMPT
@@ -369,64 +330,18 @@ export const VisionPlugin: Plugin = async () => {
         },
       }),
     },
-    "chat.message": async (input, output) => {
-      const parts = output.parts ?? []
-      debugLog({
-        event: "chat.message",
-        sessionID: input.sessionID,
-        agent: input.agent,
-        partsCount: parts.length,
-        partTypes: parts.map((p) => p.type),
-        fileParts: parts
-          .filter((p) => p.type === "file")
-          .map((p) => ({ mime: (p as { mime?: string }).mime, url: preview((p as { url?: string }).url) })),
-      })
-      for (const part of parts) {
-        if (part.type !== "file") continue
-        const file = part as { mime?: string; url?: string }
-        if (!file.mime?.startsWith("image/")) continue
-        try {
-          imagesBySession.set(input.sessionID, await imageFromFilePart(file))
-          debugLog({ event: "chat.message.captured", sessionID: input.sessionID, mime: file.mime })
-        } catch (error) {
-          debugLog({ event: "chat.message.capture-failed", sessionID: input.sessionID, error: errorMessage(error) })
-        }
-      }
-    },
     "tool.execute.after": async (input, output) => {
-      if (input.tool === "browsermcp_browser_screenshot" || input.tool.endsWith("_browser_screenshot")) {
-        debugLog({
-          event: "tool.execute.after",
-          tool: input.tool,
-          sessionID: input.sessionID,
-          outputKeys: Object.keys(output ?? {}),
-          title: preview(output?.title),
-          outputType: typeof output?.output,
-          outputPreview: preview(output?.output),
-          metadata: preview(output?.metadata),
-        })
-        const hint = "Screenshot captured. Call the `vision` tool to describe it."
-        const current = typeof output?.output === "string" ? output.output : ""
-        if (!current.includes(hint)) {
-          output.output = current ? `${current}\n${hint}` : hint
+      if (input.tool !== "browsermcp_browser_screenshot" && !input.tool.endsWith("_browser_screenshot")) return
+      // MCP tools return the raw `{ content: [...] }` result here (not `{ output, metadata }`).
+      // A browser screenshot returns image content as `{ type: "image", data: <base64>, mimeType }`.
+      const content = (output as { content?: unknown })?.content
+      if (!Array.isArray(content)) return
+      for (const item of content) {
+        const entry = item as { type?: string; data?: unknown; mimeType?: string }
+        if (entry?.type === "image" && typeof entry.data === "string") {
+          imagesBySession.set(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
         }
       }
-    },
-    "experimental.chat.messages.transform": async (input, output) => {
-      const messages = output.messages ?? []
-      const fileParts: unknown[] = []
-      for (const message of messages) {
-        for (const part of message.parts ?? []) {
-          if (part.type === "file") {
-            fileParts.push({
-              mime: (part as { mime?: string }).mime,
-              filename: (part as { filename?: string }).filename,
-              url: preview((part as { url?: string }).url),
-            })
-          }
-        }
-      }
-      debugLog({ event: "messages.transform", messagesCount: messages.length, fileParts })
     },
   }
 }

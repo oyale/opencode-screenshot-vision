@@ -1,71 +1,68 @@
 # Roadmap
 
-This is the plan for v2 of `opencode-screenshot-vision`. It borrows ideas from the prior-art vision plugins rather than reinventing them. Priorities are rough: **now** (should ship with the next release), **soon** (next feature iteration), **later** (nice-to-have).
+Versioned plan for `opencode-screenshot-vision`. Items are grouped by release and tagged with their [Conventional Commits](https://www.conventionalcommits.org) type, so the [SemVer](https://semver.org) bump and the changelog entry are already decided.
 
-## v2 items
+## Versioning policy
 
-### Transpile to `dist/` + CI before publishing — **now**
+- **SemVer**: `MAJOR.MINOR.PATCH`.
+- **Conventional Commits** drive the bump: `feat:` → MINOR, `fix:` → PATCH, `feat!:`/`fix!:` (or a `BREAKING CHANGE:` footer) → MAJOR.
+- **CHANGELOG.md** follows [Keep a Changelog](https://keepachangelog.com): an `Unreleased` section accumulates changes, then becomes a dated release entry on tag.
+- Each item below lists its commit type, so "what to write in the changelog" is settled ahead of time.
 
-The package currently ships the raw `vision.ts` source file and lists it directly in `files`/`exports`. Before publishing to npm, build to a `dist/` directory and add a CI step that runs the build and tests before publish.
+## v0.1.0 — current (unreleased)
 
-Rationale: consumers should depend on a built artifact, not a TypeScript source file, and a CI gate makes sure the published package always corresponds to a working build.
+Shipped so far, before the first public release:
 
-### Config-block overrides for provider/model/timeout — **now**
+- `vision` tool with browser-screenshot capture, pasted-image capture, and file mode.
+- Local-first fallback chain (Ollama → Zen free → Zen paid).
+- Prompt-injection defense, path containment, MIME sniffing, size/token limits.
+- README, LICENSE, `package.json`.
 
-Move configuration from environment variables into a per-project OpenCode config block (with the env vars retained as fallbacks), covering provider, model, and timeouts.
+## v1.0.0 — first public release
 
-Rationale: environment variables are global and easy to miss; a config block makes per-project overrides discoverable and reviewable, matching how the rest of OpenCode is configured.
+Release hygiene only — no user-visible behavior change. The current feature set, made trustworthy to publish.
 
-### Auto-discover a vision-capable model — **soon**
+| Item | Type |
+|---|---|
+| Build to `dist/` and publish the compiled artifact instead of `vision.ts` | `build` |
+| CI gate: build + smoke test before publish | `ci` |
+| `CHANGELOG.md` (Keep a Changelog) + release tooling (release-please or semantic-release) | `chore` |
 
-Instead of a hardcoded fallback chain, detect a vision-capable model from the user's configured providers and use it first.
+Rationale: consumers should depend on a built, CI-verified artifact, and every release needs a changelog entry. None of this is user-visible, so it stays `v1.0.0` (the first release) rather than a bump.
 
-Rationale: this is what [`opencode-vision`](https://github.com/WeZZard/opencode-vision) already does well — it registers from the user's existing image-capable models. Auto-discovery removes the need to pull a specific Ollama model or connect Zen, and works with whatever the user already has.
+## v1.1.0 — features (backward-compatible)
 
-### Auto-transparent handling for pasted images — **soon**
+| Item | Type | Prior art |
+|---|---|---|
+| Config-block overrides for provider/model/timeout (env vars kept as fallback) | `feat` | — |
+| `ocr` + `analyze` tools alongside `vision` | `feat` | [`opencode-vision-plugin`](https://github.com/AshutoshGitMirror/opencode-vision-plugin) |
+| Auto-transparent pasted images (replace with text before the model sees it) | `feat` | [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback) |
 
-Pasted images already work through the manual path (the `chat.message` hook captures them, and the model calls `vision()`). What remains is the auto-transparent step: adopt the `messages.transform` approach from [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback) to replace a pasted image with a text description before the main model sees it, so no manual call is needed.
+Rationale: all additive — existing users see no change unless they opt in. `feat` → MINOR.
 
-Rationale: the manual path already closes the gap; the auto-replacement removes the last bit of friction. It complements, rather than replaces, the browser-MCP capture — browser screenshots arrive via raw tool results, not the message pipeline.
+## v1.2.0 — widening (backward-compatible)
 
-### OCR + analyze tools — **later**
+| Item | Type |
+|---|---|
+| Backend interface abstraction (URL + auth + adapter per API family) | `refactor` |
+| Auto-discover a vision-capable model from configured providers | `feat` |
+| More local backends (OpenAI-compatible: LM Studio, llama.cpp, vLLM, …) | `feat` |
+| More cloud providers (Gemini, OpenAI, Anthropic, NVIDIA NIM, Groq, OpenRouter) | `feat` |
 
-Add dedicated `ocr` (verbatim text extraction) and `analyze` (structured UI analysis) tools alongside `vision`, modeled on [`opencode-vision-plugin`](https://github.com/AshutoshGitMirror/opencode-vision-plugin).
+Rationale: the interface is internal (no breaking change), and each new backend is additive. `refactor`/`feat` → MINOR. Auto-discovery borrows from [`opencode-vision`](https://github.com/WeZZard/opencode-vision).
 
-Rationale: `vision` produces a general description, but browser-testing workflows often need verbatim text (to match expected copy) or structured UI state (to assert on elements). Separate tools give the model finer-grained, more predictable output than one prompt can.
+## v2.0.0 — breaking config change
 
-## Widening — serve more people
+| Item | Type |
+|---|---|
+| Declarative config schema that replaces the env-var config (with a migration note) | `feat!` (BREAKING CHANGE) |
 
-Beyond v2 features, widen the surface progressively so the same value reaches more users. The enabler is the first item; the rest follow from it.
+Rationale: the first change that breaks existing users (env vars stop working) → MAJOR. Everything that must not break users stays in v1.x. This is the only planned breaking change so far.
 
-### Backend interface abstraction — **now** (enabler)
+## v2.x / unbounded
 
-Define a small backend interface: URL, auth, and a request/response adapter per API family (Ollama native, OpenAI-compatible chat, OpenAI responses, Google generateContent). Each backend becomes one config entry, not code.
-
-Rationale: widening is a configuration problem once the interface exists. Adding a provider must not mean editing the plugin.
-
-### More local backends (OpenAI-compatible) — **soon**
-
-Ollama is the only local backend today. Add anything that speaks OpenAI-compatible `/v1/chat/completions`: LM Studio, llama.cpp server, vLLM, SGLang, Jan, LocalAI.
-
-Rationale: most local runtimes already expose that endpoint, so one adapter covers nearly all of them.
-
-### More cloud providers — **soon**
-
-Today the cloud path is OpenCode Zen only. Add direct Gemini, OpenAI, Anthropic, NVIDIA NIM, Groq, and OpenRouter.
-
-Rationale: users already hold API keys for these providers; they should not be forced into a Zen account. Cost stays controlled by whatever fallback order the user configures.
-
-### More agent platforms — **later**
-
-Today the plugin targets the OpenCode plugin API only. Extract the core (image → description, with fallback) and expose it as a standalone CLI, then adapt it to Claude Code, Codex CLI, and other harnesses.
-
-Rationale: the need — a text-only model that cannot read screenshots — exists in every agent runtime. The core is portable; only the integration layer differs. A `screenshot-vision describe image.png` CLI would serve every harness at once.
-
-### Broader inline screenshot-tool recognition — **later** (largely done)
-
-File-based input already works with any tool that writes a PNG or returns base64 — Selenium, Puppeteer, Cypress, Chrome DevTools MCP, and others all work through `vision(path=...)` or the pasted-image path. The inline capture hook now matches any tool whose name contains "screenshot", so most browser MCP servers are covered too.
-
-What may remain is validating the inline capture against specific MCP servers whose screenshot tool uses an unusual name or result shape, and adding those names if the generic match misses them.
-
-Rationale: a path or a base64 blob is enough input — do not couple the tool to one browser driver.
+| Item | Type | Note |
+|---|---|---|
+| Standalone CLI (`screenshot-vision describe image.png`) | `feat` | additive; can land as a minor once v2 exists |
+| Port to Claude Code, Codex CLI, other harnesses | `feat` | additive integrations |
+| Validate inline capture against MCP servers with unusual screenshot tool names | `fix`/`feat` | as encountered |

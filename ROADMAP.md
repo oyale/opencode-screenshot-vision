@@ -9,28 +9,18 @@ Versioned plan for `opencode-screenshot-vision`. Items are grouped by release an
 - **CHANGELOG.md** follows [Keep a Changelog](https://keepachangelog.com): an `Unreleased` section accumulates changes, then becomes a dated release entry on tag.
 - Each item below lists its commit type, so "what to write in the changelog" is settled ahead of time.
 
-## v0.1.0 — current (unreleased)
+## v1.0.0 / v1.1.0 — shipped (published as `opencode-screenshot-vision@1.1.0`)
 
-Shipped so far, before the first public release:
+Done so far:
 
 - `vision` tool with browser-screenshot capture, pasted-image capture, and file mode.
-- Local-first fallback chain (Ollama → Zen free → Zen paid).
+- Local-first fallback chain (local OpenAI-compatible runtime → Zen free → Zen paid).
 - Prompt-injection defense, path containment, MIME sniffing, size/token limits.
+- Build to `dist/` with CI (typecheck + test + build), `CHANGELOG.md`, release-please, and OIDC publish workflow.
+- Local OpenAI-compatible backend (`/v1/chat/completions` + configurable URL), so LM Studio, llama.cpp server, and vLLM work alongside Ollama.
 - README, LICENSE, `package.json`.
 
-## v1.0.0 — first public release
-
-Release hygiene only — no user-visible behavior change. The current feature set, made trustworthy to publish.
-
-| Item | Type |
-|---|---|
-| Build to `dist/` and publish the compiled artifact instead of `vision.ts` | `build` |
-| CI gate: build + smoke test before publish | `ci` |
-| `CHANGELOG.md` (Keep a Changelog) + release tooling (release-please or semantic-release) | `chore` |
-
-Rationale: consumers should depend on a built, CI-verified artifact, and every release needs a changelog entry. None of this is user-visible, so it stays `v1.0.0` (the first release) rather than a bump.
-
-## v1.1.0 — features (backward-compatible)
+## v1.1.0 — remaining features (backward-compatible)
 
 | Item | Type | Prior art |
 |---|---|---|
@@ -46,7 +36,6 @@ Rationale: all additive — existing users see no change unless they opt in. `fe
 |---|---|
 | Backend interface abstraction (URL + auth + adapter per API family) | `refactor` |
 | Auto-discover a vision-capable model from configured providers | `feat` |
-| More local backends (OpenAI-compatible: LM Studio, llama.cpp, vLLM, …) | `feat` |
 | More cloud providers (Gemini, OpenAI, Anthropic, NVIDIA NIM, Groq, OpenRouter) | `feat` |
 
 Rationale: the interface is internal (no breaking change), and each new backend is additive. `refactor`/`feat` → MINOR. Auto-discovery borrows from [`opencode-vision`](https://github.com/WeZZard/opencode-vision).

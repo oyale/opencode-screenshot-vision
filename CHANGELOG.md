@@ -1,0 +1,54 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 1.1.1 (2026-08-20)
+
+
+### Bug Fixes
+
+* bound the per-session image cache ([54bbd24](https://github.com/oyale/opencode-screenshot-vision/commit/54bbd24f3e4130f8e98b05a16589a110ab9dde9b))
+
+## 1.1.0 (2026-08-20)
+
+
+### Features
+
+* add debug logging and improve image handling in VisionPlugin ([689a909](https://github.com/oyale/opencode-screenshot-vision/commit/689a9097cc8a7810e1961cb5011bb28230b8c02f))
+* add isHttpError function to improve error type checking in HTTP responses ([d9330b2](https://github.com/oyale/opencode-screenshot-vision/commit/d9330b2eea36938dc2178f03ac36049dc770b8d2))
+* add MIT License to the project ([80d0f4e](https://github.com/oyale/opencode-screenshot-vision/commit/80d0f4e5facd22a114e64af58b9bad0de968d7a7))
+* recommend sequential retries when all vision backends fail ([a1eb410](https://github.com/oyale/opencode-screenshot-vision/commit/a1eb410a951e235697451689718bd20d597d570c))
+* support pasted/dropped images; soften provider claim ([3609c7e](https://github.com/oyale/opencode-screenshot-vision/commit/3609c7e27d71aacb5e10c14a4d53006d0f7c7a32))
+* use OpenAI-compatible local backend with configurable URL ([7a001fe](https://github.com/oyale/opencode-screenshot-vision/commit/7a001fefe9edb0bdb4cb815de53be1022ed4a3d0))
+* **vision:** add plugin-based conversation image support, typed errors, and safer path checks ([0374b93](https://github.com/oyale/opencode-screenshot-vision/commit/0374b938920de8fdadce587b843df882d5e9f802))
+
+
+### Bug Fixes
+
+* capture browser screenshot image from raw MCP tool result ([72e9233](https://github.com/oyale/opencode-screenshot-vision/commit/72e92330ee2007988de9454e1f9d229fe4e4b89e))
+
+## [1.1.0] - 2026-08-20
+
+### Changed
+
+- The local tier now uses the OpenAI-compatible `/v1/chat/completions` API instead of Ollama's native `/api/generate`, so it works with LM Studio, llama.cpp server, vLLM, and any runtime exposing that endpoint.
+
+### Added
+
+- `OPENCODE_VISION_LOCAL_URL` (default `http://localhost:11434/v1`) to point the local tier at another runtime.
+- `OPENCODE_VISION_LOCAL_MODEL` (default `gemma4:e4b`). `OPENCODE_VISION_OLLAMA_MODEL` is still honored as a deprecated alias.
+
+## [1.0.0] - 2026-08-20
+
+### Added
+
+- `vision` tool that lets a text-only model read screenshots.
+- Three input sources: browser-screenshot capture (`tool.execute.after`), pasted/dropped images (`chat.message`), and a file path.
+- Local-first fallback chain: Ollama → OpenCode Zen free → Zen paid, on error or timeout.
+- Prompt-injection defense, path containment, magic-byte MIME sniffing, a size limit, and an output-token cap.
+- Environment-variable configuration for model, timeouts, size limit, and allowed roots.
+
+[1.0.0]: https://github.com/oyale/opencode-screenshot-vision/releases/tag/v1.0.0

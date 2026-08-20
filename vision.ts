@@ -10,7 +10,11 @@ const BASE_PROMPT =
   "approximate position, plus errors, warnings, dialogs, overlays and unexpected states. Distinguish observation " +
   "from uncertainty. Do not speculate. Be concise and factual."
 
-const OLLAMA_MODEL = process.env.OPENCODE_VISION_OLLAMA_MODEL ?? "gemma4:e4b"
+const LOCAL_MODEL =
+  process.env.OPENCODE_VISION_LOCAL_MODEL ??
+  process.env.OPENCODE_VISION_OLLAMA_MODEL ??
+  "gemma4:e4b"
+const LOCAL_URL = (process.env.OPENCODE_VISION_LOCAL_URL ?? "http://localhost:11434/v1").replace(/\/+$/, "")
 const ZEN_FREE_MODEL = "mimo-v2.5-free"
 const ZEN_PAID_MODEL = "gpt-5-nano"
 const LOCAL_TIMEOUT_MS = positiveInt("OPENCODE_VISION_LOCAL_TIMEOUT_MS", 90_000)
@@ -67,7 +71,7 @@ function requiredText(value: unknown, backend: string): string {
   return result
 }
 
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string") return error
   if (error && typeof error === "object") {
@@ -83,7 +87,7 @@ function errorMessage(error: unknown): string {
   return String(error)
 }
 
-function mimeOf(bytes: Uint8Array): string {
+export function mimeOf(bytes: Uint8Array): string {
   const png = [137, 80, 78, 71, 13, 10, 26, 10]
   if (bytes.length >= png.length && png.every((byte, index) => bytes[index] === byte)) return "image/png"
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg"
@@ -93,7 +97,7 @@ function mimeOf(bytes: Uint8Array): string {
   throw new Error("unsupported image format; expected PNG, JPEG, WebP or GIF")
 }
 
-function contains(root: string, path: string): boolean {
+export function contains(root: string, path: string): boolean {
   const child = relative(root, path)
   return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
 }
@@ -189,21 +193,31 @@ async function postJson(url: string, body: unknown, timeoutMs: number, auth?: st
   }
 }
 
-async function ollama(image: string, prompt: string): Promise<string> {
+async function localChat(image: string, mime: string, prompt: string): Promise<string> {
+  // OpenAI-compatible endpoint — works with Ollama's /v1 as well as LM Studio,
+  // llama.cpp server, vLLM, and any runtime exposing /v1/chat/completions.
   const data = object(
     await postJson(
-      `http://localhost:11434/api/generate`,
+      `${LOCAL_URL}/chat/completions`,
       {
-        model: OLLAMA_MODEL,
-        prompt,
-        images: [image],
-        stream: false,
-        options: { temperature: 0.2, num_predict: MAX_OUTPUT_TOKENS },
+        model: LOCAL_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${mime};base64,${image}` } },
+            ],
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: MAX_OUTPUT_TOKENS,
       },
       LOCAL_TIMEOUT_MS,
     ),
   )
-  return requiredText(data?.response, `Ollama (${OLLAMA_MODEL})`)
+  const choice = Array.isArray(data?.choices) ? object(data.choices[0]) : undefined
+  return requiredText(object(choice?.message)?.content, `Local (${LOCAL_MODEL})`)
 }
 
 async function zenChat(key: string, image: string, mime: string, prompt: string): Promise<string> {
@@ -282,7 +296,7 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
   let keyPromise: Promise<string> | undefined
   const key = () => (keyPromise ??= zenKey())
   const backends = [
-    { name: `Local (${OLLAMA_MODEL})`, run: () => ollama(image.base64, prompt) },
+    { name: `Local (${LOCAL_MODEL})`, run: () => localChat(image.base64, image.mime, prompt) },
     {
       name: `Zen Free (${ZEN_FREE_MODEL})`,
       run: async () => zenChat(await key(), image.base64, image.mime, prompt),
@@ -323,6 +337,15 @@ async function imageFromFilePart(file: { mime?: string; url?: string }): Promise
 
 const imagesBySession = new Map<string, LoadedImage>()
 
+function rememberImage(sessionID: string, image: LoadedImage): void {
+  imagesBySession.set(sessionID, image)
+  // Bound the cache in case session.deleted never fires (e.g. the server is killed).
+  if (imagesBySession.size > 100) {
+    const oldest = imagesBySession.keys().next().value
+    if (oldest !== undefined) imagesBySession.delete(oldest)
+  }
+}
+
 export const VisionPlugin: Plugin = async () => {
   return {
     tool: {
@@ -355,7 +378,7 @@ export const VisionPlugin: Plugin = async () => {
         const file = part as { mime?: string; url?: string }
         if (!file.mime?.startsWith("image/")) continue
         try {
-          imagesBySession.set(input.sessionID, await imageFromFilePart(file))
+          rememberImage(input.sessionID, await imageFromFilePart(file))
         } catch {
           // Ignore an image part that cannot be read.
         }
@@ -370,9 +393,14 @@ export const VisionPlugin: Plugin = async () => {
       for (const item of content) {
         const entry = item as { type?: string; data?: unknown; mimeType?: string }
         if (entry?.type === "image" && typeof entry.data === "string") {
-          imagesBySession.set(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
+          rememberImage(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
         }
       }
+    },
+    event: async ({ event }) => {
+      if (event.type !== "session.deleted") return
+      const sessionID = (event as { sessionID?: unknown }).sessionID
+      if (typeof sessionID === "string") imagesBySession.delete(sessionID)
     },
   }
 }

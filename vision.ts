@@ -314,7 +314,7 @@ export const VisionPlugin: Plugin = async () => {
     tool: {
       vision: tool({
         description:
-          "Describe the most recent screenshot or image in this conversation (for example one captured by the browser). Use when you received an image you cannot read and need to know what it shows. Optionally pass a file path or a specific question.",
+          "Describe a screenshot so a text-only model can verify what is on screen during browser testing. Reads the most recent browser screenshot captured in this conversation, or a file path (e.g. a Playwright screenshot). Optionally pass a specific question.",
         args: {
           path: tool.schema.string().optional().describe("Optional file path to an image on disk"),
           prompt: tool.schema.string().optional().describe("Optional specific question about the image"),

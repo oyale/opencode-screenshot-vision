@@ -1,12 +1,27 @@
-# screenshot-vision
+# opencode-screenshot-vision
 
-Give a text-only LLM the ability to see screenshots during browser-testing workflows.
+Give a text-only LLM the ability to read screenshots during browser-testing workflows — local-first.
 
 ## What problem does this solve?
 
 Models like `deepseek-chat` are text-only: they can drive a browser through an MCP server but cannot read the screenshots the browser sends back. When a test step needs to verify what is actually on screen, the model is blind.
 
-`screenshot-vision` is an [OpenCode](https://opencode.ai) plugin that closes this gap. It exposes a single `vision` tool to the model. The model calls that tool, and the tool sends the screenshot to a vision-capable backend and returns a plain-text description. The text-only model never gains vision itself — it just receives a description it can reason over.
+`opencode-screenshot-vision` is an [OpenCode](https://opencode.ai) plugin that closes this gap. It exposes a single `vision` tool to the model. The model calls that tool, and the tool sends the screenshot to a vision-capable backend and returns a plain-text description. The text-only model never gains vision itself — it just receives a description it can reason over.
+
+## Positioning
+
+This plugin exists for one specific job: **screenshots for browser-testing workflows, local-first.**
+
+It is *not* a general-purpose "vision for text-only models" package. That space is crowded, and the auto-transparent packages in [Related work](#related-work) already serve pasted images better than this plugin does. This project focuses on the browser-testing flow — screenshots captured by Browser MCP — which those packages do not cover, and it prioritizes free, local inference before falling back to any cloud service.
+
+This is a parallel project built for learning, not a competitor claiming to replace the earlier work. The differences are spelled out below.
+
+## What this project adds
+
+1. **Browser MCP screenshot capture.** Browser MCP returns screenshots inline in the raw tool result; those results never pass through the message-transform pipeline (verified), so the auto-transparent packages do not cover the browser-testing flow. This plugin captures them via a `tool.execute.after` hook on the raw MCP result.
+2. **Local-first and free.** The primary tier is local Ollama (free, private, no API key), then OpenCode Zen free, then Zen paid.
+3. **Playwright file mode.** `vision(path=...)` reads a screenshot saved to disk, e.g. by Playwright.
+4. **Prompt-injection defense** in the vision prompt.
 
 ## Features
 
@@ -129,6 +144,41 @@ All settings are optional environment variables.
 
 When all three backends fail, the `vision` tool reports each failure in a single error message, along with a hint to retry sequential calls if several vision calls were made at once.
 
+## Related work
+
+This plugin is one of several projects that give vision to text-only models in OpenCode. They are all worth knowing about.
+
+### Auto-transparent packages
+
+These detect a pasted image and replace it with a text description before the main model sees it, via the message-transform pipeline:
+
+- [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback) — auto-transparent: detects a pasted image and replaces it with a text description before the main model sees it.
+- [`@venespana/opencode-vision`](https://www.npmjs.com/package/@venespana/opencode-vision) — intercepts pasted images for text-only models.
+- [`@pawprint0706/opencode-vision-helper`](https://www.npmjs.com/package/@pawprint0706/opencode-vision-helper) — native vision fallback for models without image input.
+- [`@jochenyang/opencode-vision`](https://www.npmjs.com/package/@jochenyang/opencode-vision) — handles pasted images for non-vision models.
+
+### Tool / subagent packages
+
+These register explicit vision tools or subagents that the model invokes:
+
+- [`opencode-vision`](https://github.com/WeZZard/opencode-vision) — registers vision subagents from the user's configured image-capable models.
+- [`opencode-vision-plugin`](https://github.com/AshutoshGitMirror/opencode-vision-plugin) — in-process tools (describe/OCR/analyze), direct fetch to Gemini + NVIDIA NIM; a fork of `nicolasrios/opencode-vision`.
+
+### Comparison
+
+| Aspect | This project | Auto-transparent packages | Tool / subagent packages |
+|--------|--------------|---------------------------|--------------------------|
+| Primary input | Browser MCP screenshots + file path | Pasted images | Pasted images / manual invocation |
+| Trigger | Explicit `vision` tool call | Automatic (transparent) | Explicit tool or subagent call |
+| Backend | Local-first fallback chain (Ollama → Zen) | Varies by package | User's configured image models or direct API (Gemini, NVIDIA NIM) |
+| Local-first / free tier | Yes | No | No |
+| Prompt-injection defense | Yes | No | No |
+| OCR / analyze tools | No | No | `opencode-vision-plugin` |
+
+## Roadmap
+
+See [`ROADMAP.md`](ROADMAP.md) for the plan for v2 — which borrows improvements from the prior-art projects above — and for the widening plan (more local and cloud backends, more agent platforms, more screenshot sources).
+
 ## License
 
 MIT. See the `LICENSE` file for the full text.
@@ -140,3 +190,5 @@ Contributions are welcome. Please open an issue to discuss a change before submi
 ## Acknowledgments
 
 Built on [OpenCode](https://opencode.ai) and its plugin API, with vision provided by Ollama and OpenCode Zen, and browser automation by [Browser MCP](https://browsermcp.io).
+
+This project was informed by the prior-art vision plugins listed in [Related work](#related-work): [`opencode-vision`](https://github.com/WeZZard/opencode-vision), [`opencode-vision-plugin`](https://github.com/AshutoshGitMirror/opencode-vision-plugin), [`opencode-vision-fallback`](https://github.com/TudeOrangBiasa/opencode-vision-fallback), [`@venespana/opencode-vision`](https://www.npmjs.com/package/@venespana/opencode-vision), [`@pawprint0706/opencode-vision-helper`](https://www.npmjs.com/package/@pawprint0706/opencode-vision-helper), and [`@jochenyang/opencode-vision`](https://www.npmjs.com/package/@jochenyang/opencode-vision).

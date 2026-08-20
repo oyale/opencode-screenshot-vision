@@ -301,7 +301,10 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
       failures.push(`${backend.name}: ${errorMessage(error)}`)
     }
   }
-  throw new Error(`all vision backends failed:\n- ${failures.join("\n- ")}`)
+  throw new Error(
+    `all vision backends failed:\n- ${failures.join("\n- ")}\n\n` +
+      "If you requested several vision calls at once, retry them one at a time — local vision models can fail under concurrent load.",
+  )
 }
 
 const imagesBySession = new Map<string, LoadedImage>()

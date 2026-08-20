@@ -1,0 +1,21 @@
+{
+  "name": "opencode-screenshot-vision",
+  "version": "0.1.0",
+  "description": "OpenCode plugin: let a text-only LLM read browser screenshots via local Ollama with OpenCode Zen fallback.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./vision.ts"
+  },
+  "files": [
+    "vision.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.18.18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

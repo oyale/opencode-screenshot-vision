@@ -38,7 +38,15 @@ jobs:
         run: npm run build --if-present
 
       - name: Test
-        run: npm test --if-present
+        run: |
+          # The test script uses `bun test`. Bun is available in the Bun CI workflow,
+          # but not guaranteed on Node.js runners. Only run tests if `bun` is present;
+          # otherwise skip tests to avoid failing Node.js matrix jobs.
+          if command -v bun >/dev/null 2>&1; then
+            npm test --if-present
+          else
+            echo "bun not found — skipping tests on Node.js runner"
+          fi
 
       - name: Lint
         run: npm run lint --if-present

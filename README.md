@@ -77,13 +77,23 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
 
 ## Install
 
-Copy the plugin into your project's `.opencode/plugins/` directory:
+From npm — add the plugin to your `opencode.json` (project or global):
+
+```jsonc
+{
+  "plugin": ["opencode-screenshot-vision"]
+}
+```
+
+Then restart opencode. npm plugins are installed automatically at startup.
+
+Alternatively, copy the plugin file into a project's `.opencode/plugins/` directory:
 
 ```sh
 cp vision.ts <project>/.opencode/plugins/vision.ts
 ```
 
-Then restart opencode or start a new session. Plugins load at startup.
+Either way, restart opencode or start a new session. Plugins load at startup.
 
 ## Usage
 

@@ -1,4 +1,11 @@
 {
-  "opencode-screenshot-vision": "1.1.0",
-  ".": "1.0.0"
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "path": ".",
+      "changelog-path": "CHANGELOG.md",
+      "component": "opencode-screenshot-vision"
+    }
+  }
 }
+

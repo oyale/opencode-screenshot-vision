@@ -337,6 +337,15 @@ async function imageFromFilePart(file: { mime?: string; url?: string }): Promise
 
 const imagesBySession = new Map<string, LoadedImage>()
 
+function rememberImage(sessionID: string, image: LoadedImage): void {
+  imagesBySession.set(sessionID, image)
+  // Bound the cache in case session.deleted never fires (e.g. the server is killed).
+  if (imagesBySession.size > 100) {
+    const oldest = imagesBySession.keys().next().value
+    if (oldest !== undefined) imagesBySession.delete(oldest)
+  }
+}
+
 export const VisionPlugin: Plugin = async () => {
   return {
     tool: {
@@ -369,7 +378,7 @@ export const VisionPlugin: Plugin = async () => {
         const file = part as { mime?: string; url?: string }
         if (!file.mime?.startsWith("image/")) continue
         try {
-          imagesBySession.set(input.sessionID, await imageFromFilePart(file))
+          rememberImage(input.sessionID, await imageFromFilePart(file))
         } catch {
           // Ignore an image part that cannot be read.
         }
@@ -384,9 +393,14 @@ export const VisionPlugin: Plugin = async () => {
       for (const item of content) {
         const entry = item as { type?: string; data?: unknown; mimeType?: string }
         if (entry?.type === "image" && typeof entry.data === "string") {
-          imagesBySession.set(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
+          rememberImage(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
         }
       }
+    },
+    event: async ({ event }) => {
+      if (event.type !== "session.deleted") return
+      const sessionID = (event as { sessionID?: unknown }).sessionID
+      if (typeof sessionID === "string") imagesBySession.delete(sessionID)
     },
   }
 }

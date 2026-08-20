@@ -11,7 +11,7 @@ Models like `deepseek-chat` are text-only: they can drive a browser through an M
 ## Features
 
 - Single `vision` tool — one call, no new workflow to learn.
-- Reads screenshots from two sources: the latest image in the current conversation (Browser MCP inline flow) or a file on disk (Playwright flow).
+- Reads screenshots from two sources: the latest image captured in the conversation ([Browser MCP](https://browsermcp.io) inline flow) or a file on disk (Playwright flow).
 - Automatic fallback across three backends: local Ollama, then OpenCode Zen free, then Zen paid.
 - Direct HTTP calls to the vision backends — bypasses opencode's provider layer, which does not deliver images to Ollama models (verified).
 - Built-in safety: prompt-injection defense, path containment, MIME sniffing, a 10 MB size limit, and a 2,048-token output cap.
@@ -21,11 +21,11 @@ Models like `deepseek-chat` are text-only: they can drive a browser through an M
 The plugin registers two things when opencode starts:
 
 1. A `vision` tool the model can call.
-2. A `tool.execute.after` hook that appends a hint — *"Screenshot captured. Call the `vision` tool to describe it."* — whenever a browser screenshot tool runs, nudging the model to actually read it.
+2. A `tool.execute.after` hook that, whenever a browser screenshot tool runs, captures the image from the raw tool result and keeps it in memory for the current session.
 
 ### The two flows
 
-**Browser MCP (inline).** When a browser MCP server captures a screenshot, the image is returned as an inline `data:` URL stored as a file part in the conversation — it never touches disk. Calling `vision` with no arguments reads the most recent image file part from the current session and describes it.
+**Browser MCP (inline).** When a [Browser MCP](https://browsermcp.io) server captures a screenshot, the image is returned inline in the tool result (`{ content: [{ type: "image", ... }] }`) — it never touches disk. The hook captures it in memory, and calling `vision` with no arguments describes the most recent captured screenshot.
 
 **Playwright (on disk).** When screenshots are saved as files, the model calls `vision` with a `path` argument. The plugin reads and validates that file directly.
 
@@ -51,6 +51,7 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
   ```
 
 - **Zen tiers:** an OpenCode Zen connection, configured via `/connect` in opencode (or the equivalent environment variables).
+- **Browser MCP flow:** a [Browser MCP](https://browsermcp.io) server ([`@browsermcp/mcp`](https://github.com/browsermcp/mcp)) connected in opencode.
 
 ## Install
 
@@ -69,12 +70,12 @@ The examples below are written from the point of view of the text-only model dri
 **Browser MCP flow — read the latest inline screenshot:**
 
 ```
-# The browser MCP captures a screenshot; it appears in the conversation as
-# an image the text-only model cannot read. Call vision with no arguments:
+# The browser MCP captures a screenshot; it is returned inline and the text-only
+# model cannot read it. Call vision with no arguments:
 vision()
 ```
 
-The tool finds the most recent image file part in the session and returns a description of what it shows.
+The tool returns a description of the most recently captured screenshot.
 
 **Playwright flow — read a screenshot saved to disk:**
 
@@ -126,13 +127,11 @@ All settings are optional environment variables.
 - **Cloudflare.** Zen requests must send a browser `User-Agent`; this is set by default.
 - **`gpt-5-nano` vision.** Not yet verified at runtime — treat the paid tier as unproven until exercised.
 
-When all three backends fail, the `vision` tool reports each failure in a single error message.
+When all three backends fail, the `vision` tool reports each failure in a single error message, along with a hint to retry sequential calls if several vision calls were made at once.
 
 ## License
 
 MIT. See the `LICENSE` file for the full text.
-
-> **Note:** the `LICENSE` file is not yet present in the repository. Add it before publishing.
 
 ## Contributing
 
@@ -140,4 +139,4 @@ Contributions are welcome. Please open an issue to discuss a change before submi
 
 ## Acknowledgments
 
-Built on [OpenCode](https://opencode.ai) and its plugin API, with vision provided by Ollama and OpenCode Zen.
+Built on [OpenCode](https://opencode.ai) and its plugin API, with vision provided by Ollama and OpenCode Zen, and browser automation by [Browser MCP](https://browsermcp.io).

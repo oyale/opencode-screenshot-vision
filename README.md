@@ -77,7 +77,16 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
 
 ## Install
 
-From npm — add the plugin to your `opencode.json` (project or global):
+Easiest — from inside opencode's CLI:
+
+```sh
+opencode plugin opencode-screenshot-vision        # project
+opencode plugin -g opencode-screenshot-vision     # global
+```
+
+This installs the npm package and updates the config for you. Restart opencode afterwards.
+
+Or add it to `opencode.json` manually:
 
 ```jsonc
 {

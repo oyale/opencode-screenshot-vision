@@ -26,8 +26,13 @@ jobs:
           # Try a reproducible `npm ci` first; if it fails for any reason,
           # fall back to `npm install` so the job doesn't abort on lockfile
           # mismatches or platform-specific optional dependencies.
-          echo "Running npm ci || npm install"
-          npm ci || npm install
+          echo "Attempting npm ci; falling back to npm install on failure"
+          if npm ci; then
+            echo "npm ci succeeded"
+          else
+            echo "npm ci failed — running npm install instead"
+            npm install
+          fi
 
       - name: Build
         run: npm run build --if-present

@@ -1,4 +1,5 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
+import { appendFileSync } from "node:fs"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -81,6 +82,23 @@ function errorMessage(error: unknown): string {
     }
   }
   return String(error)
+}
+
+function debugLog(entry: Record<string, unknown>): void {
+  try {
+    appendFileSync("/tmp/vision-debug.log", `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`)
+  } catch {
+    // Debug only; never break the tool.
+  }
+}
+
+function preview(value: unknown): string {
+  try {
+    const s = typeof value === "string" ? value : JSON.stringify(value)
+    return s.replace(/\s+/g, " ").slice(0, 300)
+  } catch {
+    return String(value).slice(0, 300)
+  }
 }
 
 function mimeOf(bytes: Uint8Array): string {
@@ -318,42 +336,9 @@ async function imageFromFilePart(file: { mime?: string; url?: string }): Promise
   return { base64: bytes.toString("base64"), mime }
 }
 
-async function loadImageFromConversation(serverUrl: string, sessionID: string): Promise<LoadedImage> {
-  const base = serverUrl.replace(/\/+$/, "")
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), CLOUD_TIMEOUT_MS)
-  try {
-    const response = await fetch(`${base}/session/${sessionID}/message?limit=30`, { signal: controller.signal })
-    if (!response.ok) throw new Error(`session messages HTTP ${response.status}`)
-    const messages = (await response.json()) as Array<{
-      info?: { time?: { created?: number } }
-      parts?: Array<{ type?: string; mime?: string; url?: string }>
-    }>
+const imagesBySession = new Map<string, LoadedImage>()
 
-    let best: LoadedImage | undefined
-    let bestTime = -1
-    for (const message of messages) {
-      const created = message?.info?.time?.created ?? 0
-      for (const part of message?.parts ?? []) {
-        if (part?.type !== "file") continue
-        if (!part.mime?.startsWith("image/")) continue
-        if (created < bestTime) continue
-        try {
-          best = await imageFromFilePart({ mime: part.mime, url: part.url })
-          bestTime = created
-        } catch {
-          // Skip an image part that cannot be read.
-        }
-      }
-    }
-    if (!best) throw new Error("no screenshot found in this conversation; capture one with the browser first")
-    return best
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-export const VisionPlugin: Plugin = async ({ serverUrl }) => {
+export const VisionPlugin: Plugin = async () => {
   return {
     tool: {
       vision: tool({
@@ -364,24 +349,84 @@ export const VisionPlugin: Plugin = async ({ serverUrl }) => {
           prompt: tool.schema.string().optional().describe("Optional specific question about the image"),
         },
         async execute(args, context) {
+          debugLog({
+            event: "vision.execute",
+            sessionID: context.sessionID,
+            hasPath: Boolean(args.path),
+            captured: imagesBySession.has(context.sessionID),
+            capturedSize: imagesBySession.get(context.sessionID)?.base64.length ?? 0,
+          })
           const prompt = args.prompt?.trim()
             ? `${BASE_PROMPT}\n\nSpecific question: ${args.prompt.trim()}`
             : BASE_PROMPT
           const image = args.path
             ? await loadImageFromPath(args.path, context.directory, context.worktree)
-            : await loadImageFromConversation(serverUrl.origin, context.sessionID)
+            : imagesBySession.get(context.sessionID) ??
+              (() => {
+                throw new Error("no screenshot found in this conversation; capture one with the browser first")
+              })()
           return describe(image, prompt)
         },
       }),
     },
+    "chat.message": async (input, output) => {
+      const parts = output.parts ?? []
+      debugLog({
+        event: "chat.message",
+        sessionID: input.sessionID,
+        agent: input.agent,
+        partsCount: parts.length,
+        partTypes: parts.map((p) => p.type),
+        fileParts: parts
+          .filter((p) => p.type === "file")
+          .map((p) => ({ mime: (p as { mime?: string }).mime, url: preview((p as { url?: string }).url) })),
+      })
+      for (const part of parts) {
+        if (part.type !== "file") continue
+        const file = part as { mime?: string; url?: string }
+        if (!file.mime?.startsWith("image/")) continue
+        try {
+          imagesBySession.set(input.sessionID, await imageFromFilePart(file))
+          debugLog({ event: "chat.message.captured", sessionID: input.sessionID, mime: file.mime })
+        } catch (error) {
+          debugLog({ event: "chat.message.capture-failed", sessionID: input.sessionID, error: errorMessage(error) })
+        }
+      }
+    },
     "tool.execute.after": async (input, output) => {
       if (input.tool === "browsermcp_browser_screenshot" || input.tool.endsWith("_browser_screenshot")) {
+        debugLog({
+          event: "tool.execute.after",
+          tool: input.tool,
+          sessionID: input.sessionID,
+          outputKeys: Object.keys(output ?? {}),
+          title: preview(output?.title),
+          outputType: typeof output?.output,
+          outputPreview: preview(output?.output),
+          metadata: preview(output?.metadata),
+        })
         const hint = "Screenshot captured. Call the `vision` tool to describe it."
-        const current = typeof output.output === "string" ? output.output : ""
+        const current = typeof output?.output === "string" ? output.output : ""
         if (!current.includes(hint)) {
           output.output = current ? `${current}\n${hint}` : hint
         }
       }
+    },
+    "experimental.chat.messages.transform": async (input, output) => {
+      const messages = output.messages ?? []
+      const fileParts: unknown[] = []
+      for (const message of messages) {
+        for (const part of message.parts ?? []) {
+          if (part.type === "file") {
+            fileParts.push({
+              mime: (part as { mime?: string }).mime,
+              filename: (part as { filename?: string }).filename,
+              url: preview((part as { url?: string }).url),
+            })
+          }
+        }
+      }
+      debugLog({ event: "messages.transform", messagesCount: messages.length, fileParts })
     },
   }
 }

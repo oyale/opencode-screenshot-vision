@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.2.1...v1.3.0) (2026-08-26)
+
+
+### Features
+
+* auto-describe screenshots (append/replace/off via OPENCODE_VISION_AUTO_MODE) ([90be5c3](https://github.com/oyale/opencode-screenshot-vision/commit/90be5c339f0bfa89f2e711e482720e0dd2133d96))
+
 ## [1.2.1](https://github.com/oyale/opencode-screenshot-vision/compare/v1.2.0...v1.2.1) (2026-08-26)
 
 

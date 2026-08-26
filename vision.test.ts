@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import VisionPlugin, { contains, errorMessage, mimeOf } from "./vision"
+import { VisionPlugin, contains, errorMessage, mimeOf } from "./vision"
 
 describe("plugin structure", () => {
   it("exports a callable plugin with the vision tool and hooks", async () => {

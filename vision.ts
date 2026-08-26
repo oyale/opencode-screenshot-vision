@@ -1,4 +1,4 @@
-import { type Plugin, tool } from "@opencode-ai/plugin"
+import { type Plugin, type PluginModule, tool } from "@opencode-ai/plugin"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -405,4 +405,4 @@ export const VisionPlugin: Plugin = async () => {
   }
 }
 
-export default VisionPlugin
+export default { server: VisionPlugin } satisfies PluginModule

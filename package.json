@@ -5,11 +5,13 @@
   "type": "module",
   "license": "MIT",
   "author": "oyale",
+  "main": "./dist/vision.js",
   "exports": {
     ".": {
       "types": "./dist/vision.d.ts",
       "default": "./dist/vision.js"
-    }
+    },
+    "./server": "./dist/vision.js"
   },
   "files": [
     "dist",

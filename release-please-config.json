@@ -1,20 +1,11 @@
 {
   "packages": {
     ".": {
-      "release-type": "node"
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "commit-search-depth": 500,
   "commit-batch-size": 20,
   "always-update": true
-}
-{
-  "packages": {
-    ".": {
-      "release-type": "node",
-      "path": ".",
-      "changelog-path": "CHANGELOG.md",
-      "component": "opencode-screenshot-vision"
-    }
-  }
 }

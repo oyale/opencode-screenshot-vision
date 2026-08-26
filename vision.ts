@@ -25,6 +25,7 @@ const ZEN_URL = "https://opencode.ai/zen/v1"
 const USER_AGENT =
   process.env.OPENCODE_VISION_USER_AGENT ??
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+const AUTO_MODE = (process.env.OPENCODE_VISION_AUTO_MODE ?? "append").toLowerCase()
 
 type JsonObject = Record<string, unknown>
 
@@ -390,11 +391,34 @@ export const VisionPlugin: Plugin = async () => {
       // A browser screenshot returns image content as `{ type: "image", data: <base64>, mimeType }`.
       const content = (output as { content?: unknown })?.content
       if (!Array.isArray(content)) return
+
+      const images: LoadedImage[] = []
       for (const item of content) {
         const entry = item as { type?: string; data?: unknown; mimeType?: string }
         if (entry?.type === "image" && typeof entry.data === "string") {
-          rememberImage(input.sessionID, { base64: entry.data, mime: entry.mimeType ?? "image/png" })
+          images.push({ base64: entry.data, mime: entry.mimeType ?? "image/png" })
         }
+      }
+      const image = images[images.length - 1]
+      if (!image) return
+
+      rememberImage(input.sessionID, image)
+      if (AUTO_MODE === "off") return
+
+      try {
+        const description = await describe(image, BASE_PROMPT)
+        if (AUTO_MODE === "replace") {
+          for (let index = content.length - 1; index >= 0; index--) {
+            const entry = content[index] as { type?: string }
+            if (entry?.type === "image") content.splice(index, 1)
+          }
+        }
+        content.push({ type: "text", text: `Auto vision description:\n${description}` })
+      } catch (error) {
+        content.push({
+          type: "text",
+          text: `A screenshot was captured but auto-description failed: ${errorMessage(error)}. Call the vision tool to read it.`,
+        })
       }
     },
     event: async ({ event }) => {

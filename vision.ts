@@ -374,15 +374,37 @@ export const VisionPlugin: Plugin = async () => {
     "chat.message": async (input, output) => {
       // Pasted/dropped images arrive as file parts on the incoming message
       // (browser screenshots never do — those come through tool.execute.after).
-      for (const part of output.parts ?? []) {
-        if (part.type !== "file") continue
-        const file = part as { mime?: string; url?: string }
-        if (!file.mime?.startsWith("image/")) continue
+      const parts = (output.parts ?? []) as { type?: string; mime?: string; url?: string; text?: string }[]
+      const images: LoadedImage[] = []
+      const imageIndexes: number[] = []
+      for (let index = 0; index < parts.length; index++) {
+        const part = parts[index]
+        if (part.type !== "file" || !part.mime?.startsWith("image/")) continue
         try {
-          rememberImage(input.sessionID, await imageFromFilePart(file))
+          const image = await imageFromFilePart({ mime: part.mime, url: part.url })
+          images.push(image)
+          imageIndexes.push(index)
+          rememberImage(input.sessionID, image)
         } catch {
           // Ignore an image part that cannot be read.
         }
+      }
+      const image = images[images.length - 1]
+      if (!image || AUTO_MODE === "off") return
+
+      try {
+        const description = await describe(image, BASE_PROMPT)
+        if (AUTO_MODE === "replace") {
+          for (let index = imageIndexes.length - 1; index >= 0; index--) {
+            parts.splice(imageIndexes[index], 1)
+          }
+        }
+        parts.push({ type: "text", text: `Auto vision description:\n${description}` })
+      } catch (error) {
+        parts.push({
+          type: "text",
+          text: `An image was pasted but auto-description failed: ${errorMessage(error)}. Call the vision tool to read it.`,
+        })
       }
     },
     "tool.execute.after": async (input, output) => {

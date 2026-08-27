@@ -1,4 +1,5 @@
 import { type Plugin, type PluginModule, tool } from "@opencode-ai/plugin"
+import { randomUUID } from "node:crypto"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -374,11 +375,11 @@ export const VisionPlugin: Plugin = async () => {
     "chat.message": async (input, output) => {
       // Pasted/dropped images arrive as file parts on the incoming message
       // (browser screenshots never do — those come through tool.execute.after).
-      const parts = (output.parts ?? []) as { type?: string; mime?: string; url?: string; text?: string }[]
+      const parts = (output.parts ?? []) as Record<string, unknown>[]
       const images: LoadedImage[] = []
       const imageIndexes: number[] = []
       for (let index = 0; index < parts.length; index++) {
-        const part = parts[index]
+        const part = parts[index] as { type?: string; mime?: string; url?: string }
         if (part.type !== "file" || !part.mime?.startsWith("image/")) continue
         try {
           const image = await imageFromFilePart({ mime: part.mime, url: part.url })
@@ -392,6 +393,22 @@ export const VisionPlugin: Plugin = async () => {
       const image = images[images.length - 1]
       if (!image || AUTO_MODE === "off") return
 
+      // Persisted parts must carry id, sessionID and messageID. Reuse the
+      // originating image part's session/message ids and mint a fresh PartID
+      // (`prt_`-prefixed, as required by opencode's Part schema).
+      const base = parts[imageIndexes[imageIndexes.length - 1]] as {
+        sessionID?: string
+        messageID?: string
+      }
+      const textPart = (text: string) => ({
+        type: "text",
+        id: `prt_${randomUUID()}`,
+        sessionID: base.sessionID ?? input.sessionID,
+        messageID: base.messageID ?? input.messageID,
+        synthetic: true,
+        text,
+      })
+
       try {
         const description = await describe(image, BASE_PROMPT)
         if (AUTO_MODE === "replace") {
@@ -399,12 +416,13 @@ export const VisionPlugin: Plugin = async () => {
             parts.splice(imageIndexes[index], 1)
           }
         }
-        parts.push({ type: "text", text: `Auto vision description:\n${description}` })
+        parts.push(textPart(`Auto vision description:\n${description}`))
       } catch (error) {
-        parts.push({
-          type: "text",
-          text: `An image was pasted but auto-description failed: ${errorMessage(error)}. Call the vision tool to read it.`,
-        })
+        parts.push(
+          textPart(
+            `An image was pasted but auto-description failed: ${errorMessage(error)}. Call the vision tool to read it.`,
+          ),
+        )
       }
     },
     "tool.execute.after": async (input, output) => {

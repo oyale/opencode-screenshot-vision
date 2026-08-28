@@ -218,7 +218,7 @@ async function openAiChat(candidate: BackendCandidate, image: string, mime: stri
         temperature: 0.2,
         max_tokens: MAX_OUTPUT_TOKENS,
       },
-      LOCAL_TIMEOUT_MS,
+      candidate.local ? LOCAL_TIMEOUT_MS : CLOUD_TIMEOUT_MS,
       candidate.auth,
     ),
   )
@@ -298,7 +298,7 @@ async function zenResponses(key: string, image: string, mime: string, prompt: st
   }
 }
 
-async function describe(client: unknown, image: LoadedImage, prompt: string): Promise<string> {
+export async function describe(client: unknown, image: LoadedImage, prompt: string): Promise<string> {
   const failures: string[] = []
   const candidates = await getCandidates(client as DiscoveryClient)
 

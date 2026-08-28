@@ -94,4 +94,25 @@ describe("getCandidates", () => {
     }
     expect(await getCandidates(c)).toEqual([])
   })
+
+  it("skips malformed models instead of failing all discovery", async () => {
+    const c = client([
+      {
+        id: "broken",
+        models: {
+          noApi: { id: "no-api", capabilities: { input: { image: true } } },
+          good: {
+            id: "gemma4:e4b",
+            name: "gemma4:e4b",
+            api: { url: LOCAL_URL },
+            capabilities: { input: { image: true } },
+            cost: { input: 0, output: 0 },
+          },
+        },
+      },
+      { id: "junk", models: "not-an-object" },
+    ])
+    const candidates = await getCandidates(c)
+    expect(candidates.map((c) => c.model)).toEqual(["gemma4:e4b"])
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { VisionPlugin, contains, errorMessage, mimeOf, shouldAutoDescribe } from "./vision"
+import { VisionPlugin, contains, describe as describeImage, errorMessage, mimeOf, shouldAutoDescribe } from "./vision"
 
 describe("plugin structure", () => {
   it("exports a callable plugin with the vision tool and hooks", async () => {
@@ -76,5 +76,45 @@ describe("contains", () => {
 describe("errorMessage", () => {
   it("stringifies an object without a message field", () => {
     expect(errorMessage({ code: "ConnectionRefused" })).toContain("ConnectionRefused")
+  })
+})
+
+describe("describe fallback", () => {
+  it("aggregates failures and clears the discovery cache so the next call re-fetches", async () => {
+    let listCalls = 0
+    const client = {
+      provider: {
+        list: async () => {
+          listCalls++
+          return {
+            data: [
+              {
+                id: "mock",
+                models: {
+                  vision: {
+                    id: "vision-model",
+                    api: { url: "http://127.0.0.1:1/v1" },
+                    capabilities: { input: { image: true } },
+                  },
+                },
+              },
+            ] as never,
+          }
+        },
+      },
+    }
+    const image = { base64: "aGk=", mime: "image/png" }
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => {
+      throw new Error("network unavailable")
+    }) as unknown as typeof fetch
+    try {
+      await expect(describeImage(client as never, image, "prompt")).rejects.toThrow(/all vision backends failed/)
+      expect(listCalls).toBe(1)
+      await expect(describeImage(client as never, image, "prompt")).rejects.toThrow(/all vision backends failed/)
+      expect(listCalls).toBe(2)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

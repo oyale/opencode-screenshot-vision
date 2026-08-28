@@ -65,8 +65,9 @@ export async function getCandidates(client: DiscoveryClient): Promise<BackendCan
     const providers = (await client.provider.list()).data ?? []
     const discovered: BackendCandidate[] = []
     for (const provider of providers) {
-      for (const model of Object.values(provider.models ?? {})) {
-        if (!model.capabilities?.input?.image) continue
+      if (typeof provider.models !== "object" || provider.models === null) continue
+      for (const model of Object.values(provider.models)) {
+        if (!model.capabilities?.input?.image || !model.api?.url) continue
         discovered.push({
           providerID: provider.id,
           name: model.name ?? model.id,

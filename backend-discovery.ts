@@ -47,6 +47,11 @@ function pinnedLocalCandidate(): BackendCandidate | undefined {
   return { providerID: "env", name: `Local (${model})`, url: LOCAL_URL, model, local: true, free: true, costInput: 0 }
 }
 
+function withPin(candidates: BackendCandidate[], pin: BackendCandidate | undefined): BackendCandidate[] {
+  if (!pin) return candidates
+  return [pin, ...candidates.filter((c) => !(c.url === pin.url && c.model === pin.model))]
+}
+
 function sortCandidates(candidates: BackendCandidate[]): BackendCandidate[] {
   return candidates.sort(
     (a, b) =>
@@ -59,7 +64,7 @@ function sortCandidates(candidates: BackendCandidate[]): BackendCandidate[] {
 
 export async function getCandidates(client: DiscoveryClient): Promise<BackendCandidate[]> {
   const pin = pinnedLocalCandidate()
-  if (cache && Date.now() - cache.at < TTL_MS) return pin ? [pin, ...cache.candidates] : cache.candidates
+  if (cache && Date.now() - cache.at < TTL_MS) return withPin(cache.candidates, pin)
 
   try {
     const providers = (await client.provider.list()).data ?? []
@@ -67,6 +72,7 @@ export async function getCandidates(client: DiscoveryClient): Promise<BackendCan
     for (const provider of providers) {
       if (typeof provider.models !== "object" || provider.models === null) continue
       for (const model of Object.values(provider.models)) {
+        if (!model || typeof model !== "object") continue
         if (!model.capabilities?.input?.image || !model.api?.url) continue
         discovered.push({
           providerID: provider.id,
@@ -84,7 +90,7 @@ export async function getCandidates(client: DiscoveryClient): Promise<BackendCan
   } catch {
     cache = { at: Date.now(), candidates: [] }
   }
-  return pin ? [pin, ...cache.candidates] : cache.candidates
+  return withPin(cache.candidates, pin)
 }
 
 export function clearCache(): void {

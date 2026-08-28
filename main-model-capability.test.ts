@@ -32,6 +32,13 @@ describe("ModelVisionTracker", () => {
     expect(tracker.hasVision("ses_1")).toBe(false)
   })
 
+  it("flips a session from vision to text-only when re-tracked", () => {
+    const tracker = new ModelVisionTracker()
+    tracker.track(model(true), "ses_1")
+    tracker.track(model(false), "ses_1")
+    expect(tracker.hasVision("ses_1")).toBe(false)
+  })
+
   it("defaults unknown sessions to false", () => {
     expect(new ModelVisionTracker().hasVision("ses_unknown")).toBe(false)
   })

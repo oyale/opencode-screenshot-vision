@@ -52,13 +52,14 @@ All flows converge on the same `describe` step: encode the image, send it to a b
 
 ### Fallback chain
 
-Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode).
+The chain is resolved at runtime: the env pin (`OPENCODE_VISION_LOCAL_MODEL`) is tried first, then discovered vision-capable models ordered local-first, then free, then by cost (cached for 10 minutes), then OpenCode Zen free, then Zen paid as the guaranteed final fallback. Each tier is tried only if the previous one fails with an error or a timeout. The paid tier retries once without the `reasoning` parameter if the API rejects it with HTTP 400 (the backend does not accept `reasoning` in non-reasoning mode).
 
 | Tier | Backend | Model | Cost | Endpoint |
 |------|---------|-------|------|----------|
-| 1 | Local (OpenAI-compatible) | `gemma4:e4b` | Free | `/v1/chat/completions` |
-| 2 | OpenCode Zen | `mimo-v2.5-free` | Free | `/v1/chat/completions` |
-| 3 | OpenCode Zen | `gpt-5-nano` | $0.05 / $0.40 per 1M tokens | `/v1/responses` |
+| 1 | Env pin (local, OpenAI-compatible) | `gemma4:e4b` | Free | `/v1/chat/completions` |
+| 2 | Discovered backends (local → free → cost) | auto-discovered model | varies | provider endpoint |
+| 3 | OpenCode Zen | `mimo-v2.5-free` | Free | `/v1/chat/completions` |
+| 4 | OpenCode Zen | `gpt-5-nano` | $0.05 / $0.40 per 1M tokens | `/v1/responses` |
 
 > **Backend scope.** The local tier speaks the OpenAI-compatible `/v1/chat/completions` API, so it works with Ollama as well as LM Studio, llama.cpp server, vLLM, and any runtime that exposes that endpoint — point `OPENCODE_VISION_LOCAL_URL` at it. Vision-capable models from all configured providers are auto-discovered as ordered backends (see [Discovered backends](#discovered-backends)); OpenCode Zen's free and paid tiers remain the guaranteed final fallback.
 

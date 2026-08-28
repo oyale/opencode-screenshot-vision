@@ -19,6 +19,9 @@ Done so far:
 - Build to `dist/` with CI (typecheck + test + build), `CHANGELOG.md`, release-please, and OIDC publish workflow.
 - Local OpenAI-compatible backend (`/v1/chat/completions` + configurable URL), so LM Studio, llama.cpp server, and vLLM work alongside Ollama.
 - README, LICENSE, `package.json`.
+
+## v1.5.0 — Unreleased
+
 - Auto-discover a vision-capable model from configured providers — **done** (v1.5.0)
 
 ## v1.1.0 — remaining features (backward-compatible)

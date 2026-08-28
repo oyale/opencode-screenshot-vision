@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { VisionPlugin, contains, describe as describeImage, errorMessage, mimeOf, shouldAutoDescribe } from "./vision"
+import { clearCache } from "./backend-discovery"
 
 describe("plugin structure", () => {
   it("exports a callable plugin with the vision tool and hooks", async () => {
@@ -81,6 +82,7 @@ describe("errorMessage", () => {
 
 describe("describe fallback", () => {
   it("aggregates failures and clears the discovery cache so the next call re-fetches", async () => {
+    clearCache()
     let listCalls = 0
     const client = {
       provider: {

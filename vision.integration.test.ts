@@ -47,6 +47,7 @@ function mockResponse() {
 const originalFetch = globalThis.fetch
 let fetchCalls = 0
 let lastBody = ""
+let lastUrl = ""
 let hooks: Awaited<ReturnType<typeof VisionPlugin>>
 
 const ctx = (sessionID: string) => ({
@@ -69,8 +70,12 @@ beforeEach(() => {
   clearCache()
   fetchCalls = 0
   lastBody = ""
-  globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+  lastUrl = ""
+  delete process.env.OPENCODE_VISION_BACKENDS
+  delete process.env.OPENCODE_API_KEY
+  globalThis.fetch = (async (url: unknown, init?: { body?: unknown }) => {
     fetchCalls++
+    lastUrl = String(url)
     lastBody = String(init?.body ?? "")
     return mockResponse()
   }) as unknown as typeof fetch
@@ -184,5 +189,58 @@ describe("vision tool validation", () => {
     await expect(
       hooks.tool.vision.execute({ path: bad }, ctx("ses_bad") as never),
     ).rejects.toThrow(/unsupported image format/)
+  })
+})
+
+describe("backend tier order", () => {
+  it("uses only the local tier when OPENCODE_VISION_BACKENDS=local", async () => {
+    process.env.OPENCODE_VISION_BACKENDS = "local"
+    const path = join(tmpdir(), "opencode", "integration.png")
+    writeFileSync(path, Buffer.from(RED_PNG, "base64"))
+    const result = (await hooks.tool.vision.execute({ path }, ctx("ses_tier_local") as never)) as string
+    expect(result).toContain(MOCK_DESCRIPTION)
+    expect(fetchCalls).toBe(1)
+    expect(lastUrl).toContain("/chat/completions")
+  })
+
+  it("uses only zen-paid when OPENCODE_VISION_BACKENDS=zen-paid", async () => {
+    process.env.OPENCODE_VISION_BACKENDS = "zen-paid"
+    process.env.OPENCODE_API_KEY = "test-key"
+    globalThis.fetch = (async (url: unknown, init?: { body?: unknown }) => {
+      fetchCalls++
+      lastUrl = String(url)
+      lastBody = String(init?.body ?? "")
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ output_text: "ZEN_PAID_DESC" }),
+      }
+    }) as unknown as typeof fetch
+    const path = join(tmpdir(), "opencode", "integration.png")
+    writeFileSync(path, Buffer.from(RED_PNG, "base64"))
+    const result = (await hooks.tool.vision.execute({ path }, ctx("ses_tier_paid") as never)) as string
+    expect(result).toContain("ZEN_PAID_DESC")
+    expect(lastUrl).toContain("/responses")
+    expect(fetchCalls).toBe(1)
+  })
+
+  it("honors order: zen-free before local", async () => {
+    process.env.OPENCODE_VISION_BACKENDS = "zen-free,local"
+    process.env.OPENCODE_API_KEY = "test-key"
+    globalThis.fetch = (async (url: unknown, init?: { body?: unknown }) => {
+      fetchCalls++
+      lastUrl = String(url)
+      lastBody = String(init?.body ?? "")
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ choices: [{ message: { content: "ZEN_FREE_DESC" } }] }),
+      }
+    }) as unknown as typeof fetch
+    const path = join(tmpdir(), "opencode", "integration.png")
+    writeFileSync(path, Buffer.from(RED_PNG, "base64"))
+    const result = (await hooks.tool.vision.execute({ path }, ctx("ses_tier_free") as never)) as string
+    expect(result).toContain("ZEN_FREE_DESC")
+    expect(lastBody).toContain("mimo-v2.5-free")
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { VisionPlugin, contains, describe as describeImage, errorMessage, mimeOf, shouldAutoDescribe } from "./vision"
+import { VisionPlugin, contains, describe as describeImage, errorMessage, mimeOf, parseBackends, shouldAutoDescribe } from "./vision"
 import { clearCache } from "./backend-discovery"
 
 describe("plugin structure", () => {
@@ -37,6 +37,39 @@ describe("shouldAutoDescribe", () => {
 
   it("treats an unknown mode as auto", () => {
     expect(shouldAutoDescribe("bogus", true)).toBe(false)
+  })
+})
+
+describe("parseBackends", () => {
+  it("returns the default order when unset", () => {
+    expect(parseBackends(undefined)).toEqual(["local", "zen-free", "zen-paid"])
+  })
+
+  it("returns the default order for empty, whitespace, or commas only", () => {
+    expect(parseBackends("")).toEqual(["local", "zen-free", "zen-paid"])
+    expect(parseBackends("   ")).toEqual(["local", "zen-free", "zen-paid"])
+    expect(parseBackends(" , , ")).toEqual(["local", "zen-free", "zen-paid"])
+  })
+
+  it("preserves a custom order", () => {
+    expect(parseBackends("zen-free,local,zen-paid")).toEqual(["zen-free", "local", "zen-paid"])
+  })
+
+  it("excludes omitted tiers", () => {
+    expect(parseBackends("zen-paid")).toEqual(["zen-paid"])
+    expect(parseBackends("local,zen-paid")).toEqual(["local", "zen-paid"])
+  })
+
+  it("is case-insensitive and trims whitespace", () => {
+    expect(parseBackends(" Local , ZEN-FREE , zen-paid ")).toEqual(["local", "zen-free", "zen-paid"])
+  })
+
+  it("dedupes repeated tiers", () => {
+    expect(parseBackends("local,local,zen-paid")).toEqual(["local", "zen-paid"])
+  })
+
+  it("throws on an unknown token", () => {
+    expect(() => parseBackends("local,zenfree")).toThrow(/invalid OPENCODE_VISION_BACKENDS token "zenfree"/)
   })
 })
 

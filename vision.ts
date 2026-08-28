@@ -298,34 +298,59 @@ async function zenResponses(key: string, image: string, mime: string, prompt: st
   }
 }
 
-export async function describe(client: unknown, image: LoadedImage, prompt: string): Promise<string> {
-  const failures: string[] = []
-  const candidates = await getCandidates(client as DiscoveryClient)
+const VALID_BACKEND_TIERS = ["local", "zen-free", "zen-paid"] as const
+type BackendTier = (typeof VALID_BACKEND_TIERS)[number]
 
-  for (const candidate of candidates) {
-    try {
-      return await openAiChat(candidate, image.base64, image.mime, prompt)
-    } catch (error) {
-      failures.push(`${candidate.name}: ${errorMessage(error)}`)
+const DEFAULT_BACKENDS: BackendTier[] = ["local", "zen-free", "zen-paid"]
+
+export function parseBackends(raw: string | undefined): BackendTier[] {
+  const value = (raw ?? "").trim()
+  if (!value) return [...DEFAULT_BACKENDS]
+  const result: BackendTier[] = []
+  const seen = new Set<BackendTier>()
+  for (const token of value.split(",")) {
+    const tier = token.trim().toLowerCase() as BackendTier
+    if (!tier) continue
+    if (!VALID_BACKEND_TIERS.includes(tier)) {
+      throw new Error(
+        `invalid OPENCODE_VISION_BACKENDS token "${token.trim()}"; expected one of: local, zen-free, zen-paid`,
+      )
+    }
+    if (!seen.has(tier)) {
+      seen.add(tier)
+      result.push(tier)
     }
   }
+  return result.length ? result : [...DEFAULT_BACKENDS]
+}
 
+export async function describe(client: unknown, image: LoadedImage, prompt: string): Promise<string> {
+  const failures: string[] = []
   let keyPromise: Promise<string> | undefined
   const key = () => (keyPromise ??= zenKey())
-  for (const backend of [
-    {
-      name: `Zen Free (${ZEN_FREE_MODEL})`,
-      run: async () => zenChat(await key(), image.base64, image.mime, prompt),
-    },
-    {
-      name: `Zen Paid (${ZEN_PAID_MODEL})`,
-      run: async () => zenResponses(await key(), image.base64, image.mime, prompt),
-    },
-  ]) {
-    try {
-      return await backend.run()
-    } catch (error) {
-      failures.push(`${backend.name}: ${errorMessage(error)}`)
+
+  for (const tier of parseBackends(process.env.OPENCODE_VISION_BACKENDS)) {
+    if (tier === "local") {
+      const candidates = await getCandidates(client as DiscoveryClient)
+      for (const candidate of candidates) {
+        try {
+          return await openAiChat(candidate, image.base64, image.mime, prompt)
+        } catch (error) {
+          failures.push(`${candidate.name}: ${errorMessage(error)}`)
+        }
+      }
+    } else if (tier === "zen-free") {
+      try {
+        return await zenChat(await key(), image.base64, image.mime, prompt)
+      } catch (error) {
+        failures.push(`Zen Free (${ZEN_FREE_MODEL}): ${errorMessage(error)}`)
+      }
+    } else {
+      try {
+        return await zenResponses(await key(), image.base64, image.mime, prompt)
+      } catch (error) {
+        failures.push(`Zen Paid (${ZEN_PAID_MODEL}): ${errorMessage(error)}`)
+      }
     }
   }
 

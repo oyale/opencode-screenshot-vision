@@ -25,6 +25,7 @@ Done so far:
 
 - Auto-skip backend inference when the main model has vision (`OPENCODE_VISION_AUTO_MODE=auto` default) — **done**.
 - Auto-discover vision-capable models from configured providers, ordered local-first → free → cost, Zen as guaranteed fallback — **done**.
+- Configurable backend tier order via `OPENCODE_VISION_BACKENDS` (reorder and/or exclude `local` / `zen-free` / `zen-paid`) — **done**.
 
 ## Backlog (unversioned)
 

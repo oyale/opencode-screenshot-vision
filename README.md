@@ -169,6 +169,7 @@ Only the settings below are configurable, via optional environment variables. Ev
 | `OPENCODE_VISION_MAX_IMAGE_BYTES` | `10485760` (10 MB) | Max image size for path-based loads |
 | `OPENCODE_VISION_USER_AGENT` | Chrome 126 UA | `User-Agent` header sent to Zen |
 | `OPENCODE_VISION_AUTO_MODE` | `auto` | Auto-describe browser screenshots and pasted images: `append` (add description after the image), `replace` (description replaces the image), `off` (manual `vision` only), `auto` (default: describe only when the main model cannot see images) |
+| `OPENCODE_VISION_BACKENDS` | `local,zen-free,zen-paid` | Ordered backend tiers, comma-separated. Tokens: `local` (discovered models), `zen-free`, `zen-paid`. Omit a token to exclude that tier (e.g. `zen-paid` only, or `local,zen-paid` to skip the free tier) |
 | `OPENCODE_VISION_ALLOWED_ROOTS` | *(empty)* | Extra directories readable via `path`, separated by the OS path delimiter |
 | `OPENCODE_API_KEY` | *(from auth.json)* | Overrides the Zen API key |
 | `OPENCODE_AUTH_CONTENT` | *(unset)* | `auth.json` contents provided as an environment string |

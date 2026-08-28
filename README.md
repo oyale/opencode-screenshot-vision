@@ -226,6 +226,27 @@ These register explicit vision tools or subagents that the model invokes:
 
 See [`ROADMAP.md`](ROADMAP.md) for the plan for v2 — which borrows improvements from the prior-art projects above — and for the widening plan (more local and cloud backends, more agent platforms, more screenshot sources).
 
+## Development
+
+**Tests.** Unit + mocked integration, deterministic (CI runs this):
+
+```sh
+bun test
+```
+
+- `vision.test.ts` — plugin structure, auto-describe decision, mime/path guards, fallback cache.
+- `main-model-capability.test.ts` — vision-capability detection and per-session tracking.
+- `backend-discovery.test.ts` — discovery filtering, ordering, env pin, TTL cache, edge cases.
+- `vision.integration.test.ts` — the three capture flows (file, browser-screenshot, pasted image), `vision()` no-args, auto-skip with a vision model, path validation, prompt transmission.
+
+**Live smoke** against the local vision backend (Ollama), exercising the capture flows end-to-end with real inference:
+
+```sh
+bun run smoke
+```
+
+`SMOKE_IMAGE` comes from `.env` (see `.env.example`); without it the smoke uses a tiny embedded PNG. The model comes from `OPENCODE_VISION_LOCAL_MODEL` (default `qwen3-vl:4b-instruct`). Before running, unload heavy models that can crash the vision runner (`ollama stop gemma4:e4b`).
+
 ## License
 
 MIT. See the `LICENSE` file for the full text.

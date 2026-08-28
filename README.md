@@ -60,7 +60,22 @@ Each tier is tried only if the previous one fails with an error or a timeout. Th
 | 2 | OpenCode Zen | `mimo-v2.5-free` | Free | `/v1/chat/completions` |
 | 3 | OpenCode Zen | `gpt-5-nano` | $0.05 / $0.40 per 1M tokens | `/v1/responses` |
 
-> **Backend scope (v1.1.0).** The local tier speaks the OpenAI-compatible `/v1/chat/completions` API, so it works with Ollama as well as LM Studio, llama.cpp server, vLLM, and any runtime that exposes that endpoint — point `OPENCODE_VISION_LOCAL_URL` at it. The cloud tier is still fixed to OpenCode Zen: its base URL, the two model names, and their request formats are hardcoded. Lifting the cloud constraints is planned in [ROADMAP.md](ROADMAP.md) (v1.2.0).
+> **Backend scope.** The local tier speaks the OpenAI-compatible `/v1/chat/completions` API, so it works with Ollama as well as LM Studio, llama.cpp server, vLLM, and any runtime that exposes that endpoint — point `OPENCODE_VISION_LOCAL_URL` at it. Vision-capable models from all configured providers are auto-discovered as ordered backends (see [Discovered backends](#discovered-backends)); OpenCode Zen's free and paid tiers remain the guaranteed final fallback.
+
+### Auto-skip when the main model has vision
+
+The plugin reads the active model's `capabilities.input.image` from every request. With
+`OPENCODE_VISION_AUTO_MODE=auto` (the default), an incoming image is **not** auto-described
+when the main model can already see images — no backend inference runs. Set the mode
+explicitly to `append`/`replace` to force auto-description, or `off` to disable it entirely.
+
+### Discovered backends
+
+The vision backends are no longer only the hardcoded local + Zen chain. On the first vision
+call, the plugin lists the configured providers and uses every model with image capability,
+ordered local-first, then free, then by cost. The local/`OPENCODE_VISION_LOCAL_MODEL` pin is
+always tried first. Zen free and paid remain the guaranteed final fallback. The candidate
+list is cached for 10 minutes and refreshed after a total failure.
 
 ## Requirements
 
@@ -152,7 +167,7 @@ Only the settings below are configurable, via optional environment variables. Ev
 | `OPENCODE_VISION_CLOUD_TIMEOUT_MS` | `45000` | Zen request timeout, milliseconds |
 | `OPENCODE_VISION_MAX_IMAGE_BYTES` | `10485760` (10 MB) | Max image size for path-based loads |
 | `OPENCODE_VISION_USER_AGENT` | Chrome 126 UA | `User-Agent` header sent to Zen |
-| `OPENCODE_VISION_AUTO_MODE` | `append` | Auto-describe browser screenshots and pasted images: `append` (add description after the image), `replace` (description replaces the image), `off` (manual `vision` only) |
+| `OPENCODE_VISION_AUTO_MODE` | `auto` | Auto-describe browser screenshots and pasted images: `append` (add description after the image), `replace` (description replaces the image), `off` (manual `vision` only), `auto` (default: describe only when the main model cannot see images) |
 | `OPENCODE_VISION_ALLOWED_ROOTS` | *(empty)* | Extra directories readable via `path`, separated by the OS path delimiter |
 | `OPENCODE_API_KEY` | *(from auth.json)* | Overrides the Zen API key |
 | `OPENCODE_AUTH_CONTENT` | *(unset)* | `auth.json` contents provided as an environment string |

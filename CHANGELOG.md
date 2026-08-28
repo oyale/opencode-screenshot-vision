@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Auto-skip backend inference when the main model has image capability (`AUTO_MODE=auto` default).
+- Discover vision-capable models from configured providers as ordered backends (local-first, then free, then cost), with Zen as the guaranteed fallback.
+
 ## [1.4.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.3.0...v1.4.0) (2026-08-26)
 
 

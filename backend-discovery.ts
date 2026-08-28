@@ -27,7 +27,7 @@ export interface BackendCandidate {
   costInput: number
 }
 
-const LOCAL_URL = (process.env.OPENCODE_VISION_LOCAL_URL ?? 'http://localhost:11434/v1').replace(/\/+$/, '')
+const LOCAL_URL = (process.env.OPENCODE_VISION_LOCAL_URL ?? "http://localhost:11434/v1").replace(/\/+$/, "")
 
 const TTL_MS = 10 * 60 * 1000
 
@@ -44,7 +44,7 @@ function isFree(model: ApiModel): boolean {
 function pinnedLocalCandidate(): BackendCandidate | undefined {
   const model = process.env.OPENCODE_VISION_LOCAL_MODEL ?? process.env.OPENCODE_VISION_OLLAMA_MODEL
   if (!model) return undefined
-  return { providerID: 'env', name: `Local (${model})`, url: LOCAL_URL, model, local: true, free: true, costInput: 0 }
+  return { providerID: "env", name: `Local (${model})`, url: LOCAL_URL, model, local: true, free: true, costInput: 0 }
 }
 
 function sortCandidates(candidates: BackendCandidate[]): BackendCandidate[] {

@@ -13,11 +13,6 @@ const BASE_PROMPT =
   "approximate position, plus errors, warnings, dialogs, overlays and unexpected states. Distinguish observation " +
   "from uncertainty. Do not speculate. Be concise and factual."
 
-const LOCAL_MODEL =
-  process.env.OPENCODE_VISION_LOCAL_MODEL ??
-  process.env.OPENCODE_VISION_OLLAMA_MODEL ??
-  "gemma4:e4b"
-const LOCAL_URL = (process.env.OPENCODE_VISION_LOCAL_URL ?? "http://localhost:11434/v1").replace(/\/+$/, "")
 const ZEN_FREE_MODEL = "mimo-v2.5-free"
 const ZEN_PAID_MODEL = "gpt-5-nano"
 const LOCAL_TIMEOUT_MS = positiveInt("OPENCODE_VISION_LOCAL_TIMEOUT_MS", 90_000)
@@ -33,8 +28,8 @@ const AUTO_MODE = (process.env.OPENCODE_VISION_AUTO_MODE ?? "auto").toLowerCase(
 const visionTracker = new ModelVisionTracker()
 
 export function shouldAutoDescribe(mode: string, hasVision: boolean): boolean {
-  if (mode === 'off') return false
-  if (mode === 'append' || mode === 'replace') return true
+  if (mode === "off") return false
+  if (mode === "append" || mode === "replace") return true
   return !hasVision
 }
 
@@ -213,10 +208,10 @@ async function openAiChat(candidate: BackendCandidate, image: string, mime: stri
         model: candidate.model,
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: `data:${mime};base64,${image}` } },
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${mime};base64,${image}` } },
             ],
           },
         ],
@@ -336,8 +331,8 @@ async function describe(client: unknown, image: LoadedImage, prompt: string): Pr
 
   clearCache()
   throw new Error(
-    `all vision backends failed:\n- ${failures.join('\n- ')}\n\n` +
-      'If you requested several vision calls at once, retry them one at a time — local vision models can fail under concurrent load.',
+    `all vision backends failed:\n- ${failures.join("\n- ")}\n\n` +
+      "If you requested several vision calls at once, retry them one at a time — local vision models can fail under concurrent load.",
   )
 }
 
@@ -390,7 +385,7 @@ export const VisionPlugin: Plugin = async ({ client }) => {
         },
       }),
     },
-    'chat.params': async (input) => {
+    "chat.params": async (input) => {
       visionTracker.track(input.model, input.sessionID)
     },
     "chat.message": async (input, output) => {

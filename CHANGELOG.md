@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.4.1...v1.5.0) (2026-08-28)
+
+
+### Features
+
+* allow overriding backend tier order via OPENCODE_VISION_BACKENDS ([01f218c](https://github.com/oyale/opencode-screenshot-vision/commit/01f218c8a218636fcaf1346f02e878d27d0c9e3a))
+* discover and order vision backends from configured providers ([2fb7b68](https://github.com/oyale/opencode-screenshot-vision/commit/2fb7b68d6cd0fc485c76d9303bbfa2f88cd56f6e))
+* skip auto-describe when the main model sees, discover backends ([587e32b](https://github.com/oyale/opencode-screenshot-vision/commit/587e32b773c708b6d5a7d5e5df4c82e5fad2e58b))
+* track main model vision capability per session ([e55c9cf](https://github.com/oyale/opencode-screenshot-vision/commit/e55c9cf6bad52ea929dbd367d54116aa6e4ff3cc))
+
+
+### Bug Fixes
+
+* guard malformed discovery models, test describe fallback, cloud timeout ([c5fcb35](https://github.com/oyale/opencode-screenshot-vision/commit/c5fcb35beed6f9adfcad6c14ceb960703ca99b2c))
+
 ## [1.4.1](https://github.com/oyale/opencode-screenshot-vision/compare/v1.4.0...v1.4.1) (2026-08-27)
 
 

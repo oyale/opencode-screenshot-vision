@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto"
 import { readFile, realpath, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { getCandidates, clearCache, type BackendCandidate, type DiscoveryClient } from "./backend-discovery"
+import { ModelVisionTracker } from "./main-model-capability"
 
 const BASE_PROMPT =
   "You are inspecting a screenshot captured while an LLM tests a web application. " +
@@ -26,7 +28,15 @@ const ZEN_URL = "https://opencode.ai/zen/v1"
 const USER_AGENT =
   process.env.OPENCODE_VISION_USER_AGENT ??
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-const AUTO_MODE = (process.env.OPENCODE_VISION_AUTO_MODE ?? "append").toLowerCase()
+const AUTO_MODE = (process.env.OPENCODE_VISION_AUTO_MODE ?? "auto").toLowerCase()
+
+const visionTracker = new ModelVisionTracker()
+
+export function shouldAutoDescribe(mode: string, hasVision: boolean): boolean {
+  if (mode === 'off') return false
+  if (mode === 'append' || mode === 'replace') return true
+  return !hasVision
+}
 
 type JsonObject = Record<string, unknown>
 
@@ -195,20 +205,18 @@ async function postJson(url: string, body: unknown, timeoutMs: number, auth?: st
   }
 }
 
-async function localChat(image: string, mime: string, prompt: string): Promise<string> {
-  // OpenAI-compatible endpoint — works with Ollama's /v1 as well as LM Studio,
-  // llama.cpp server, vLLM, and any runtime exposing /v1/chat/completions.
+async function openAiChat(candidate: BackendCandidate, image: string, mime: string, prompt: string): Promise<string> {
   const data = object(
     await postJson(
-      `${LOCAL_URL}/chat/completions`,
+      `${candidate.url}/chat/completions`,
       {
-        model: LOCAL_MODEL,
+        model: candidate.model,
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: `data:${mime};base64,${image}` } },
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mime};base64,${image}` } },
             ],
           },
         ],
@@ -216,10 +224,11 @@ async function localChat(image: string, mime: string, prompt: string): Promise<s
         max_tokens: MAX_OUTPUT_TOKENS,
       },
       LOCAL_TIMEOUT_MS,
+      candidate.auth,
     ),
   )
   const choice = Array.isArray(data?.choices) ? object(data.choices[0]) : undefined
-  return requiredText(object(choice?.message)?.content, `Local (${LOCAL_MODEL})`)
+  return requiredText(object(choice?.message)?.content, candidate.name)
 }
 
 async function zenChat(key: string, image: string, mime: string, prompt: string): Promise<string> {
@@ -294,11 +303,21 @@ async function zenResponses(key: string, image: string, mime: string, prompt: st
   }
 }
 
-async function describe(image: LoadedImage, prompt: string): Promise<string> {
+async function describe(client: unknown, image: LoadedImage, prompt: string): Promise<string> {
+  const failures: string[] = []
+  const candidates = await getCandidates(client as DiscoveryClient)
+
+  for (const candidate of candidates) {
+    try {
+      return await openAiChat(candidate, image.base64, image.mime, prompt)
+    } catch (error) {
+      failures.push(`${candidate.name}: ${errorMessage(error)}`)
+    }
+  }
+
   let keyPromise: Promise<string> | undefined
   const key = () => (keyPromise ??= zenKey())
-  const backends = [
-    { name: `Local (${LOCAL_MODEL})`, run: () => localChat(image.base64, image.mime, prompt) },
+  for (const backend of [
     {
       name: `Zen Free (${ZEN_FREE_MODEL})`,
       run: async () => zenChat(await key(), image.base64, image.mime, prompt),
@@ -307,19 +326,18 @@ async function describe(image: LoadedImage, prompt: string): Promise<string> {
       name: `Zen Paid (${ZEN_PAID_MODEL})`,
       run: async () => zenResponses(await key(), image.base64, image.mime, prompt),
     },
-  ]
-
-  const failures: string[] = []
-  for (const backend of backends) {
+  ]) {
     try {
       return await backend.run()
     } catch (error) {
       failures.push(`${backend.name}: ${errorMessage(error)}`)
     }
   }
+
+  clearCache()
   throw new Error(
-    `all vision backends failed:\n- ${failures.join("\n- ")}\n\n` +
-      "If you requested several vision calls at once, retry them one at a time — local vision models can fail under concurrent load.",
+    `all vision backends failed:\n- ${failures.join('\n- ')}\n\n` +
+      'If you requested several vision calls at once, retry them one at a time — local vision models can fail under concurrent load.',
   )
 }
 
@@ -348,7 +366,7 @@ function rememberImage(sessionID: string, image: LoadedImage): void {
   }
 }
 
-export const VisionPlugin: Plugin = async () => {
+export const VisionPlugin: Plugin = async ({ client }) => {
   return {
     tool: {
       vision: tool({
@@ -368,9 +386,12 @@ export const VisionPlugin: Plugin = async () => {
               (() => {
                 throw new Error("no screenshot found in this conversation; capture one with the browser first")
               })()
-          return describe(image, prompt)
+          return describe(client, image, prompt)
         },
       }),
+    },
+    'chat.params': async (input) => {
+      visionTracker.track(input.model, input.sessionID)
     },
     "chat.message": async (input, output) => {
       // Pasted/dropped images arrive as file parts on the incoming message
@@ -391,7 +412,7 @@ export const VisionPlugin: Plugin = async () => {
         }
       }
       const image = images[images.length - 1]
-      if (!image || AUTO_MODE === "off") return
+      if (!image || !shouldAutoDescribe(AUTO_MODE, visionTracker.hasVision(input.sessionID))) return
 
       // Persisted parts must carry id, sessionID and messageID. Reuse the
       // originating image part's session/message ids and mint a fresh PartID
@@ -410,7 +431,7 @@ export const VisionPlugin: Plugin = async () => {
       })
 
       try {
-        const description = await describe(image, BASE_PROMPT)
+        const description = await describe(client, image, BASE_PROMPT)
         if (AUTO_MODE === "replace") {
           for (let index = imageIndexes.length - 1; index >= 0; index--) {
             parts.splice(imageIndexes[index], 1)
@@ -443,10 +464,10 @@ export const VisionPlugin: Plugin = async () => {
       if (!image) return
 
       rememberImage(input.sessionID, image)
-      if (AUTO_MODE === "off") return
+      if (!shouldAutoDescribe(AUTO_MODE, visionTracker.hasVision(input.sessionID))) return
 
       try {
-        const description = await describe(image, BASE_PROMPT)
+        const description = await describe(client, image, BASE_PROMPT)
         if (AUTO_MODE === "replace") {
           for (let index = content.length - 1; index >= 0; index--) {
             const entry = content[index] as { type?: string }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { VisionPlugin, contains, errorMessage, mimeOf } from "./vision"
+import { VisionPlugin, contains, errorMessage, mimeOf, shouldAutoDescribe } from './vision'
 
 describe("plugin structure", () => {
   it("exports a callable plugin with the vision tool and hooks", async () => {
@@ -7,6 +7,35 @@ describe("plugin structure", () => {
     expect(hooks.tool?.vision).toBeTruthy()
     expect(typeof hooks["chat.message"]).toBe("function")
     expect(typeof hooks["tool.execute.after"]).toBe("function")
+  })
+
+  it('registers the chat.params hook', async () => {
+    const hooks = await VisionPlugin({} as Parameters<typeof VisionPlugin>[0])
+    expect(typeof hooks['chat.params']).toBe('function')
+  })
+})
+
+describe('shouldAutoDescribe', () => {
+  it('never describes in off mode', () => {
+    expect(shouldAutoDescribe('off', true)).toBe(false)
+    expect(shouldAutoDescribe('off', false)).toBe(false)
+  })
+
+  it('always describes in append/replace even when the model sees', () => {
+    expect(shouldAutoDescribe('append', true)).toBe(true)
+    expect(shouldAutoDescribe('replace', true)).toBe(true)
+  })
+
+  it('skips in auto mode when the model sees', () => {
+    expect(shouldAutoDescribe('auto', true)).toBe(false)
+  })
+
+  it('describes in auto mode when the model does not see', () => {
+    expect(shouldAutoDescribe('auto', false)).toBe(true)
+  })
+
+  it('treats an unknown mode as auto', () => {
+    expect(shouldAutoDescribe('bogus', true)).toBe(false)
   })
 })
 

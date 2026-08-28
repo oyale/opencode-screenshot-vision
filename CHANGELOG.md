@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto-skip backend inference when the main model has image capability (`AUTO_MODE=auto` default).
 - Discover vision-capable models from configured providers as ordered backends (local-first, then free, then cost), with Zen as the guaranteed fallback.
 
+## [1.4.1](https://github.com/oyale/opencode-screenshot-vision/compare/v1.4.0...v1.4.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* mint valid TextPart metadata in chat.message auto-description ([6f8644b](https://github.com/oyale/opencode-screenshot-vision/commit/6f8644babce2a4738ff83a2d87b168294aebf709))
+
 ## [1.4.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.3.0...v1.4.0) (2026-08-26)
 
 

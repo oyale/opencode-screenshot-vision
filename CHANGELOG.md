@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/oyale/opencode-screenshot-vision/compare/v1.5.1...v2.0.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* requires OpenCode 2.x and drops the @opencode-ai/plugin dependency and the ./server export. OpenCode 1.x users stay on 1.x.
+
+### Features
+
+* port to the OpenCode V2 plugin API ([be3b9cf](https://github.com/oyale/opencode-screenshot-vision/commit/be3b9cf97c6e828f783765805d9faeef2f96d889))
+
 ## [1.5.1](https://github.com/oyale/opencode-screenshot-vision/compare/v1.5.0...v1.5.1) (2026-08-31)
 
 

@@ -1,7 +1,5 @@
-export function hasImageCapability(model: {
-  capabilities?: { input?: { image?: boolean } }
-}): boolean {
-  return Boolean(model.capabilities?.input?.image)
+export function hasImageCapability(model: { capabilities?: { input?: readonly string[] } }): boolean {
+  return model.capabilities?.input?.includes("image") === true
 }
 
 const MAX_SESSIONS = 100
@@ -9,7 +7,7 @@ const MAX_SESSIONS = 100
 export class ModelVisionTracker {
   private bySession = new Map<string, boolean>()
 
-  track(model: { capabilities?: { input?: { image?: boolean } } }, sessionID: string): void {
+  track(model: { capabilities?: { input?: readonly string[] } }, sessionID: string): void {
     this.bySession.set(sessionID, hasImageCapability(model))
     if (this.bySession.size > MAX_SESSIONS) {
       const oldest = this.bySession.keys().next().value

@@ -2,15 +2,15 @@ import { describe, expect, it } from "bun:test"
 import { hasImageCapability, ModelVisionTracker } from "./main-model-capability"
 
 function model(image?: boolean) {
-  return { capabilities: { input: { image } } }
+  return { capabilities: { input: image === undefined ? [] : image ? ["text", "image"] : ["text"] } }
 }
 
 describe("hasImageCapability", () => {
-  it("returns true when input.image is true", () => {
+  it("returns true when input lists image", () => {
     expect(hasImageCapability(model(true))).toBe(true)
   })
 
-  it("returns false when input.image is false", () => {
+  it("returns false when image is absent from input", () => {
     expect(hasImageCapability(model(false))).toBe(false)
   })
 

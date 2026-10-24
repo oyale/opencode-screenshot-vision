@@ -44,10 +44,19 @@ Done so far:
 | Item | Type | Note |
 |---|---|---|
 | Default model mismatch | `docs` | README says `gemma4:e4b` (README:59,96,177); smoke script + AGENTS.md say `qwen3-vl:4b-instruct` (`scripts/smoke-vision.ts:9`). |
-| Typecheck scope | `fix` | `tsconfig.json` includes only `vision.ts` + `vision.test.ts`; integration/discovery/tracker/smoke files untyped by `bun run typecheck`. |
-| Diary test count | `docs` | DEVELOPER_DIARY.md says "36 pass"; suite now 57 (`23+14+12+8`). |
+| Diary test count | `docs` | DEVELOPER_DIARY.md says "36 pass"; suite now 61. |
 
-## v2.0.0 — breaking config change
+## v2.0.0 — OpenCode V2 plugin API (breaking)
+
+The package targets the OpenCode 2 plugin API only: `Plugin.define` + `ctx.*` domains replace the
+V1 `PluginModule` shape and returned hook map. Existing V1 users stay on the 1.x line.
+
+| Item | Type |
+|---|---|
+| Port to `@opencode/plugin` 2.x (`Plugin.define`, `ctx.tool.transform`, `ctx.tool.hook`, `ctx.session.hook`, `ctx.event.subscribe`) | `feat!` (BREAKING CHANGE) |
+| Discover backends from `ctx.model.list()` + `ctx.provider.list()`; credentials via `ctx.integration.connection` | `feat!` (BREAKING CHANGE) |
+
+## v3.0.0 — breaking config change
 
 | Item | Type |
 |---|---|

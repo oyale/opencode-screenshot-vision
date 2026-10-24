@@ -11,5 +11,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["bun-types"]
   },
-  "include": ["vision.ts", "vision.test.ts"]
+  "include": ["*.ts", "scripts/*.ts"]
 }

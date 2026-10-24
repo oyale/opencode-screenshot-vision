@@ -3,16 +3,9 @@ import { VisionPlugin, contains, describe as describeImage, errorMessage, mimeOf
 import { clearCache } from "./backend-discovery"
 
 describe("plugin structure", () => {
-  it("exports a callable plugin with the vision tool and hooks", async () => {
-    const hooks = await VisionPlugin({} as Parameters<typeof VisionPlugin>[0])
-    expect(hooks.tool?.vision).toBeTruthy()
-    expect(typeof hooks["chat.message"]).toBe("function")
-    expect(typeof hooks["tool.execute.after"]).toBe("function")
-  })
-
-  it("registers the chat.params hook", async () => {
-    const hooks = await VisionPlugin({} as Parameters<typeof VisionPlugin>[0])
-    expect(typeof hooks["chat.params"]).toBe("function")
+  it("exports a V2 plugin definition", () => {
+    expect(VisionPlugin.id).toBe("opencode-screenshot-vision")
+    expect(typeof VisionPlugin.setup).toBe("function")
   })
 })
 
@@ -118,22 +111,21 @@ describe("describe fallback", () => {
     clearCache()
     let listCalls = 0
     const client = {
-      provider: {
+      provider: { list: async () => ({ data: [{ id: "mock", settings: { baseURL: "http://127.0.0.1:1/v1" } }] }) },
+      model: {
         list: async () => {
           listCalls++
           return {
             data: [
               {
-                id: "mock",
-                models: {
-                  vision: {
-                    id: "vision-model",
-                    api: { url: "http://127.0.0.1:1/v1" },
-                    capabilities: { input: { image: true } },
-                  },
-                },
+                id: "vision-model",
+                modelID: "vision-model",
+                providerID: "mock",
+                name: "vision",
+                capabilities: { input: ["text", "image"] },
+                cost: [{ input: 0, output: 0 }],
               },
-            ] as never,
+            ],
           }
         },
       },
@@ -144,9 +136,9 @@ describe("describe fallback", () => {
       throw new Error("network unavailable")
     }) as unknown as typeof fetch
     try {
-      await expect(describeImage(client as never, image, "prompt")).rejects.toThrow(/all vision backends failed/)
+      await expect(describeImage(client, image, "prompt")).rejects.toThrow(/all vision backends failed/)
       expect(listCalls).toBe(1)
-      await expect(describeImage(client as never, image, "prompt")).rejects.toThrow(/all vision backends failed/)
+      await expect(describeImage(client, image, "prompt")).rejects.toThrow(/all vision backends failed/)
       expect(listCalls).toBe(2)
     } finally {
       globalThis.fetch = originalFetch

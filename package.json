@@ -10,8 +10,7 @@
     ".": {
       "types": "./dist/vision.d.ts",
       "default": "./dist/vision.js"
-    },
-    "./server": "./dist/vision.js"
+    }
   },
   "files": [
     "dist",
@@ -44,7 +43,7 @@
     "url": "https://github.com/oyale/opencode-screenshot-vision/issues"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.18.18"
+    "@opencode/plugin": "^2.1.4"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

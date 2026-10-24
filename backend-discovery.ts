@@ -1,19 +1,32 @@
-interface ApiModel {
+import { hasImageCapability } from "./main-model-capability"
+
+export interface ApiModel {
   id: string
+  modelID?: string
   name?: string
-  api: { url: string }
-  capabilities?: { input?: { image?: boolean } }
-  cost?: { input?: number; output?: number }
+  providerID: string
+  capabilities?: { input?: readonly string[] }
+  cost?: ReadonlyArray<{ input?: number; output?: number }>
+  settings?: { baseURL?: string }
+  enabled?: boolean
+  status?: string
 }
 
-interface ApiProvider {
+export interface ApiProvider {
   id: string
-  key?: string
-  models: Record<string, ApiModel>
+  settings?: { baseURL?: string }
+  integrationID?: string
 }
 
 export interface DiscoveryClient {
-  provider: { list(): Promise<{ data?: ApiProvider[] }> }
+  provider: { list(): Promise<{ data?: readonly ApiProvider[] }> }
+  model: { list(): Promise<{ data?: readonly ApiModel[] }> }
+  integration?: {
+    connection: {
+      active(integrationID: string): Promise<any>
+      resolve(connection: any): Promise<{ type?: string; key?: string } | undefined>
+    }
+  }
 }
 
 export interface BackendCandidate {
@@ -38,7 +51,28 @@ function isLoopbackUrl(url: string): boolean {
 }
 
 function isFree(model: ApiModel): boolean {
-  return (model.cost?.input ?? 0) === 0 && (model.cost?.output ?? 0) === 0
+  return (model.cost ?? []).every((tier) => (tier.input ?? 0) === 0 && (tier.output ?? 0) === 0)
+}
+
+function inputCost(model: ApiModel): number {
+  return Math.min(...(model.cost ?? []).map((tier) => tier.input ?? Infinity))
+}
+
+function baseUrl(model: ApiModel, provider: ApiProvider | undefined): string | undefined {
+  const url = model.settings?.baseURL ?? provider?.settings?.baseURL
+  return typeof url === "string" && url ? url.replace(/\/+$/, "") : undefined
+}
+
+async function providerKey(client: DiscoveryClient, provider: ApiProvider): Promise<string | undefined> {
+  if (!provider.integrationID || !client.integration) return undefined
+  try {
+    const active = await client.integration.connection.active(provider.integrationID)
+    if (!active) return undefined
+    const credential = await client.integration.connection.resolve(active)
+    return credential?.type === "key" && credential.key ? credential.key : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function pinnedLocalCandidate(): BackendCandidate | undefined {
@@ -67,24 +101,32 @@ export async function getCandidates(client: DiscoveryClient): Promise<BackendCan
   if (cache && Date.now() - cache.at < TTL_MS) return withPin(cache.candidates, pin)
 
   try {
-    const providers = (await client.provider.list()).data ?? []
+    const providers = new Map(((await client.provider.list()).data ?? []).map((p) => [p.id, p]))
+    const keys = new Map<string, string | undefined>()
     const discovered: BackendCandidate[] = []
-    for (const provider of providers) {
-      if (typeof provider.models !== "object" || provider.models === null) continue
-      for (const model of Object.values(provider.models)) {
-        if (!model || typeof model !== "object") continue
-        if (!model.capabilities?.input?.image || !model.api?.url) continue
-        discovered.push({
-          providerID: provider.id,
-          name: model.name ?? model.id,
-          url: model.api.url,
-          model: model.id,
-          auth: provider.key,
-          local: isLoopbackUrl(model.api.url),
-          free: isFree(model),
-          costInput: model.cost?.input ?? Infinity,
-        })
+    for (const model of (await client.model.list()).data ?? []) {
+      if (!model || typeof model !== "object") continue
+      if (!hasImageCapability(model)) continue
+      if (model.enabled === false || model.status === "deprecated") continue
+
+      const provider = providers.get(model.providerID)
+      const url = baseUrl(model, provider)
+      if (!url) continue
+      if (!keys.has(model.providerID)) {
+        keys.set(model.providerID, provider ? await providerKey(client, provider) : undefined)
       }
+
+      const id = model.modelID ?? model.id
+      discovered.push({
+        providerID: model.providerID,
+        name: model.name ?? id,
+        url,
+        model: id,
+        auth: keys.get(model.providerID),
+        local: isLoopbackUrl(url),
+        free: isFree(model),
+        costInput: inputCost(model),
+      })
     }
     cache = { at: Date.now(), candidates: sortCandidates(discovered) }
   } catch {

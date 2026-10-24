@@ -110,13 +110,12 @@ With `local`, only the `OPENCODE_VISION_LOCAL_MODEL` pin and discovered local mo
 Easiest — from inside opencode's CLI:
 
 ```sh
-opencode plugin opencode-screenshot-vision        # project
-opencode plugin -g opencode-screenshot-vision     # global
+opencode plugin add opencode-screenshot-vision
 ```
 
-This installs the npm package and updates the config for you. Restart opencode afterwards.
+This installs the npm package and adds it to your global config (`~/.config/opencode/opencode.json`). Restart opencode afterwards.
 
-Or add it to `opencode.json` manually:
+Or add it to `opencode.json` manually — global, or a project-level `opencode.json` to enable it in one project only:
 
 ```jsonc
 {
@@ -124,7 +123,7 @@ Or add it to `opencode.json` manually:
 }
 ```
 
-Then restart opencode. npm plugins are installed automatically at startup.
+Pin the major if you want to stay on the OpenCode 2 API: `"opencode-screenshot-vision@2"`. Then restart opencode. npm plugins are installed automatically at startup, so a global `npm i -g` is not needed.
 
 Alternatively, for local development, drop a plugin directory into the project: rename
 `vision.ts` to `index.ts` and keep the two helper modules beside it.
